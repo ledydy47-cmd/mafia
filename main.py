@@ -12,11 +12,8 @@ import uuid
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# Папка для хранения загруженных фото
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-# Раздаём папку uploads как статику по пути /uploads/...
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 BOT_TOKEN = "8794090676:AAHS-qb5r5OyNQaFq1xF3uwXh7tOFFqosXs"
@@ -54,36 +51,30 @@ class GameModel(BaseModel):
 
 db_games: List[GameModel] = []
 
-# ✅ НОВЫЙ ЭНДПОИНТ — загрузка фото с устройства
 @app.post("/upload_photo")
 async def upload_photo(file: UploadFile = File(...)):
-    # Проверяем что это картинка
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Файл должен быть изображением")
-    
-    # Генерируем уникальное имя файла, сохраняем расширение
     ext = file.filename.split(".")[-1]
     filename = f"{uuid.uuid4().hex}.{ext}"
     filepath = os.path.join(UPLOAD_DIR, filename)
-    
-    # Сохраняем файл на диск
     with open(filepath, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    
-    # Возвращаем публичный URL файла
     photo_url = f"https://mafia-k0kq.onrender.com/uploads/{filename}"
     return {"photo_url": photo_url}
 
 def sync_with_telegram(game: GameModel):
     try:
         direct_link = f"https://t.me/{BOT_USERNAME}/{APP_NAME}?startapp=game_{game.id}"
-        
+
         p_list = ""
         for i in range(1, 16):
             if i <= len(game.players):
                 p = game.players[i-1]
+                # ✅ Показываем ник если он есть
+                nick = f" «{p.nickname}»" if p.nickname and p.nickname.strip() else ""
                 tg = f" @{p.tg_profile.replace('@','')}" if p.tg_profile != "нет" else ""
-                p_list += f"{i}) {p.name}{tg}\n"
+                p_list += f"{i}) {p.name}{nick}{tg}\n"
             else:
                 p_list += f"{i})\n"
 
@@ -111,24 +102,37 @@ def sync_with_telegram(game: GameModel):
         )
 
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/"
-        payload = {"chat_id": GROUP_ID, "parse_mode": "Markdown"}
 
-        if game.photo_url:
-            payload.update({"photo": game.photo_url, "caption": text})
-            method = "sendPhoto" if not game.telegram_message_id else "editMessageCaption"
+        if game.photo_url and not game.telegram_message_id:
+            print(f"[TG] Скачиваем фото: {game.photo_url}")
+            photo_response = requests.get(game.photo_url, timeout=15)
+            print(f"[TG] Фото скачано, размер: {len(photo_response.content)} байт")
+            files = {"photo": ("photo.jpg", photo_response.content, "image/jpeg")}
+            data  = {"chat_id": GROUP_ID, "caption": text, "parse_mode": "Markdown"}
+            res   = requests.post(url + "sendPhoto", data=data, files=files)
+
+        elif game.photo_url and game.telegram_message_id:
+            payload = {
+                "chat_id": GROUP_ID,
+                "message_id": game.telegram_message_id,
+                "caption": text,
+                "parse_mode": "Markdown"
+            }
+            res = requests.post(url + "editMessageCaption", json=payload)
+
         else:
-            payload.update({"text": text, "disable_web_page_preview": False})
-            method = "sendMessage" if not game.telegram_message_id else "editMessageText"
-
-        if game.telegram_message_id:
-            payload["message_id"] = game.telegram_message_id
-
-        print(f"[TG] Метод: {method}")
-        print(f"[TG] chat_id: {GROUP_ID}")
-        print(f"[TG] photo_url: {game.photo_url}")
-        print(f"[TG] Отправляем запрос...")
-
-        res = requests.post(url + method, json=payload)
+            payload = {
+                "chat_id": GROUP_ID,
+                "text": text,
+                "parse_mode": "Markdown",
+                "disable_web_page_preview": False
+            }
+            if game.telegram_message_id:
+                payload["message_id"] = game.telegram_message_id
+                method = "editMessageText"
+            else:
+                method = "sendMessage"
+            res = requests.post(url + method, json=payload)
 
         print(f"[TG] Статус ответа: {res.status_code}")
         print(f"[TG] Ответ Telegram: {res.text}")
@@ -136,13 +140,12 @@ def sync_with_telegram(game: GameModel):
         res_json = res.json()
         if res_json.get("ok") and not game.telegram_message_id:
             game.telegram_message_id = res_json["result"]["message_id"]
-            print(f"[TG] Сообщение сохранено, message_id: {game.telegram_message_id}")
+            print(f"[TG] message_id сохранён: {game.telegram_message_id}")
         elif not res_json.get("ok"):
             print(f"[TG] ОШИБКА от Telegram: {res_json.get('description')}")
 
     except Exception as e:
         print(f"[TG] ИСКЛЮЧЕНИЕ: {e}")
-
 
 @app.get("/", response_class=HTMLResponse)
 async def read_index():
@@ -162,9 +165,12 @@ async def add_game(game: GameModel):
 async def register(game_id: int, p: PlayerEntry):
     for g in db_games:
         if g.id == game_id:
-            if any(x.user_id == p.user_id for x in g.players + g.reserve): return {"status": "exists"}
-            if len(g.players) < g.max_slots: g.players.append(p)
-            else: g.reserve.append(p)
+            if any(x.user_id == p.user_id for x in g.players + g.reserve):
+                return {"status": "exists"}
+            if len(g.players) < g.max_slots:
+                g.players.append(p)
+            else:
+                g.reserve.append(p)
             sync_with_telegram(g)
             return {"status": "ok"}
     return {"status": "error"}
@@ -175,7 +181,8 @@ async def cancel(game_id: int, user_id: int):
         if g.id == game_id:
             g.players = [p for p in g.players if p.user_id != user_id]
             g.reserve = [p for p in g.reserve if p.user_id != user_id]
-            if len(g.players) < g.max_slots and g.reserve: g.players.append(g.reserve.pop(0))
+            if len(g.players) < g.max_slots and g.reserve:
+                g.players.append(g.reserve.pop(0))
             sync_with_telegram(g)
             return {"status": "ok"}
     return {"status": "error"}
