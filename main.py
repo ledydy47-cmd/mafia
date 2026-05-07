@@ -112,7 +112,7 @@ def sync_with_telegram(game: GameModel):
 
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/"
         payload = {"chat_id": GROUP_ID, "parse_mode": "Markdown"}
-        
+
         if game.photo_url:
             payload.update({"photo": game.photo_url, "caption": text})
             method = "sendPhoto" if not game.telegram_message_id else "editMessageCaption"
@@ -120,12 +120,29 @@ def sync_with_telegram(game: GameModel):
             payload.update({"text": text, "disable_web_page_preview": False})
             method = "sendMessage" if not game.telegram_message_id else "editMessageText"
 
-        if game.telegram_message_id: payload["message_id"] = game.telegram_message_id
-        
-        res = requests.post(url + method, json=payload).json()
-        if res.get("ok") and not game.telegram_message_id:
-            game.telegram_message_id = res["result"]["message_id"]
-    except Exception as e: print(f"TG Error: {e}")
+        if game.telegram_message_id:
+            payload["message_id"] = game.telegram_message_id
+
+        print(f"[TG] Метод: {method}")
+        print(f"[TG] chat_id: {GROUP_ID}")
+        print(f"[TG] photo_url: {game.photo_url}")
+        print(f"[TG] Отправляем запрос...")
+
+        res = requests.post(url + method, json=payload)
+
+        print(f"[TG] Статус ответа: {res.status_code}")
+        print(f"[TG] Ответ Telegram: {res.text}")
+
+        res_json = res.json()
+        if res_json.get("ok") and not game.telegram_message_id:
+            game.telegram_message_id = res_json["result"]["message_id"]
+            print(f"[TG] Сообщение сохранено, message_id: {game.telegram_message_id}")
+        elif not res_json.get("ok"):
+            print(f"[TG] ОШИБКА от Telegram: {res_json.get('description')}")
+
+    except Exception as e:
+        print(f"[TG] ИСКЛЮЧЕНИЕ: {e}")
+
 
 @app.get("/", response_class=HTMLResponse)
 async def read_index():
