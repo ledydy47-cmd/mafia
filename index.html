@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mafia Club App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --tg-theme-bg-color: #ffffff;
+            --tg-theme-text-color: #000000;
+            --tg-theme-button-color: #3390ec;
+            --tg-theme-button-text-color: #ffffff;
+            --tg-theme-secondary-bg-color: #f4f4f5;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--tg-theme-bg-color);
+            color: var(--tg-theme-text-color);
+            margin: 0;
+            padding: 15px;
+        }
+
+        .header { text-align: center; margin-bottom: 20px; }
+        
+        .card {
+            background-color: var(--tg-theme-secondary-bg-color);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .game-title { font-size: 1.2em; font-weight: bold; margin-bottom: 5px; }
+        .game-info { font-size: 0.9em; color: gray; margin-bottom: 10px; }
+        
+        .player-list { margin-top: 10px; font-size: 0.9em; }
+        .player-item {
+            display: inline-block;
+            background: var(--tg-theme-bg-color);
+            padding: 4px 10px;
+            border-radius: 15px;
+            margin: 2px;
+            border: 1px solid #ddd;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            background: var(--tg-theme-bg-color);
+            color: var(--tg-theme-text-color);
+        }
+
+        button {
+            width: 100%;
+            background-color: var(--tg-theme-button-color);
+            color: var(--tg-theme-button-text-color);
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .admin-panel {
+            display: none;
+            border-top: 2px dashed #ccc;
+            margin-top: 20px;
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Mafia Club</h1>
+    </div>
+
+    <div id="schedule-tab">
+        <h2>Ближайшие игры</h2>
+        <div id="games-container">
+            Загрузка игр...
+        </div>
+    </div>
+
+    <div id="admin-tab" class="admin-panel">
+        <h2>Панель администратора</h2>
+        <div class="card">
+            <input type="text" id="new-game-name" placeholder="Название (Пятничная Мафия)">
+            <input type="text" id="new-game-date" placeholder="Дата (15 мая, 19:00)">
+            <input type="number" id="new-game-slots" placeholder="Всего мест (например, 10)">
+            <button onclick="addGame()">Добавить игру</button>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        // Пока вы запускаете локально, используйте этот URL. 
+        // Когда выложите сервер в интернет, замените на адрес от ngrok или хостинга.
+        const API_URL = "http://127.0.0.1:8000"; 
+
+        // 1. Проверка на админа (здесь можно вписать ваш Telegram ID)
+        const adminIds = [12345678, 87654321]; // Замените на свой ID (можно узнать у @userinfobot)
+        if (tg.initDataUnsafe.user && adminIds.includes(tg.initDataUnsafe.user.id)) {
+            document.getElementById('admin-tab').style.display = 'block';
+        }
+
+        // 2. Функция загрузки игр с сервера
+        async function loadGames() {
+            try {
+                const response = await fetch(`${API_URL}/games`);
+                const games = await response.json();
+                const container = document.getElementById('games-container');
+                container.innerHTML = '';
+
+                games.forEach(game => {
+                    const freeSlots = game.max_slots - game.players.length;
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.innerHTML = `
+                        <div class="game-title">${game.title}</div>
+                        <div class="game-info">Дата: ${game.date} | Свободно: ${freeSlots}</div>
+                        <div class="player-list">
+                            <strong>Участники:</strong>
+                            <div>${game.players.map(p => `<span class="player-item">${p}</span>`).join('')}</div>
+                        </div>
+                        <input type="text" id="player-name-${game.id}" placeholder="Ваш ник">
+                        <button onclick="registerPlayer(${game.id})">Записаться</button>
+                    `;
+                    container.appendChild(card);
+                });
+            } catch (e) {
+                document.getElementById('games-container').innerText = "Ошибка загрузки данных.";
+            }
+        }
+
+        // 3. Регистрация игрока
+        async function registerPlayer(gameId) {
+            const nameInput = document.getElementById(`player-name-${gameId}`);
+            const name = nameInput.value.trim();
+
+            if (!name) {
+                tg.showAlert("Введите ник!");
+                return;
+            }
+
+            const response = await fetch(`${API_URL}/register?game_id=${gameId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ name: name })
+            });
+
+            if (response.ok) {
+                tg.showAlert("Вы успешно записаны!");
+                loadGames(); // Обновляем список
+            } else {
+                const err = await response.json();
+                tg.showAlert("Ошибка: " + err.detail);
+            }
+        }
+
+        // 4. Добавление новой игры (для админа)
+        async function addGame() {
+            const title = document.getElementById('new-game-name').value;
+            const date = document.getElementById('new-game-date').value;
+            const slots = document.getElementById('new-game-slots').value;
+
+            const response = await fetch(`${API_URL}/add_game`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ title, date, max_slots: parseInt(slots) })
+            });
+
+            if (response.ok) {
+                tg.showAlert("Игра добавлена!");
+                loadGames();
+            }
+        }
+
+        // Запуск при открытии
+        loadGames();
+    </script>
+</body>
+</html>
