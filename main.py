@@ -21,20 +21,20 @@ class PlayerEntry(BaseModel):
 
 class GameModel(BaseModel):
     id: Optional[int] = None
-    title: str # Название игры
-    game_date: str # 10 мая
-    game_day: str # Воскресенье
-    table_type: str # Вайбовый стол
-    description: str # Текст про экватор мая...
-    fits: str # Список через запятую
-    not_fits: str # Список через запятую
-    time_start: str # 18:00
-    games_count: str # Четыре игры
-    cost: str # 800 рублей
-    master: str # Актриса Таисия
-    location_name: str # Парадная
-    location_address: str # Малые Каменщики 16...
-    location_url: str # https://...
+    title: str
+    game_date: str
+    game_day: str
+    table_type: str
+    description: str
+    fits: str
+    not_fits: str
+    time_start: str
+    games_count: str
+    cost: str
+    master: str
+    location_name: str
+    location_address: str
+    location_url: str
     photo_url: Optional[str] = ""
     max_slots: int = 15
     players: List[PlayerEntry] = []
@@ -47,7 +47,6 @@ def sync_with_telegram(game: GameModel):
     try:
         direct_link = f"https://t.me/{BOT_USERNAME}/{APP_NAME}?startapp=game_{game.id}"
         
-        # Список участников 1-15
         p_list = ""
         for i in range(1, 16):
             if i <= len(game.players):
@@ -57,25 +56,23 @@ def sync_with_telegram(game: GameModel):
             else:
                 p_list += f"{i})\n"
 
-        # Форматирование списков Подходит/Не подходит
-        fits_formatted = "\n".join([f"{x.strip()} ✅" for x in game.fits.split(',') if x.strip()])
-        not_fits_formatted = "\n".join([f"{x.strip()} ❌" for x in game.not_fits.split(',') if x.strip()])
+        fits_f = "\n".join([f"{x.strip()} ✅" for x in game.fits.split(',') if x.strip()])
+        not_fits_f = "\n".join([f"{x.strip()} ❌" for x in game.not_fits.split(',') if x.strip()])
 
-        # Сборка текста поста по твоему шаблону
         text = (
             f"📅 *{game.game_date}, {game.table_type}*\n\n"
             f"*{game.title}*\n\n"
             f"{game.description}\n\n"
             f"*{game.title}*\n"
-            f"Подходит:\n{fits_formatted}\n\n"
-            f"Не подходит:\n{not_fits_formatted}\n\n"
+            f"Подходит:\n{fits_f}\n\n"
+            f"Не подходит:\n{not_fits_f}\n\n"
             f"*{game.game_date.upper()}, {game.game_day}*\n"
             f"*{game.time_start}*\n"
             f"*{game.games_count}*\n"
             f"*{game.cost}*\n\n"
             f"Ведущий: {game.master}\n\n"
             f"*Локация*\n"
-            f"{game.location_name}, {game.location_address}\n"
+            f"{game.location_name}\n{game.location_address}\n"
             f"{game.location_url}\n\n"
             f"*Участники:*\n"
             f"{p_list}"
@@ -83,21 +80,20 @@ def sync_with_telegram(game: GameModel):
         )
 
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/"
-        method = "sendPhoto" if game.photo_url else "sendMessage"
-        
         payload = {"chat_id": GROUP_ID, "parse_mode": "Markdown"}
+        
         if game.photo_url:
             payload.update({"photo": game.photo_url, "caption": text})
+            method = "sendPhoto" if not game.telegram_message_id else "editMessageCaption"
         else:
             payload.update({"text": text, "disable_web_page_preview": False})
+            method = "sendMessage" if not game.telegram_message_id else "editMessageText"
 
-        if not game.telegram_message_id:
-            res = requests.post(url + method, json=payload).json()
-            if res.get("ok"): game.telegram_message_id = res["result"]["message_id"]
-        else:
-            m = "editMessageCaption" if game.photo_url else "editMessageText"
-            payload["message_id"] = game.telegram_message_id
-            requests.post(url + m, json=payload)
+        if game.telegram_message_id: payload["message_id"] = game.telegram_message_id
+        
+        res = requests.post(url + method, json=payload).json()
+        if res.get("ok") and not game.telegram_message_id:
+            game.telegram_message_id = res["result"]["message_id"]
     except Exception as e: print(f"TG Error: {e}")
 
 @app.get("/", response_class=HTMLResponse)
@@ -118,6 +114,7 @@ async def add_game(game: GameModel):
 async def register(game_id: int, p: PlayerEntry):
     for g in db_games:
         if g.id == game_id:
+            if any(x.user_id == p.user_id for x in g.players + g.reserve): return {"status": "exists"}
             if len(g.players) < g.max_slots: g.players.append(p)
             else: g.reserve.append(p)
             sync_with_telegram(g)
