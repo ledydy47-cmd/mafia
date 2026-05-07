@@ -20,11 +20,11 @@ UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
-BOT_TOKEN = "8794090676:AAHS-qb5r5OyNQaFq1xF3uwXh7tOFFqosXs"
-GROUP_ID = "-1003932633365"
-BOT_USERNAME = "mafia_revolutionclub_bot"
-APP_NAME = "app"
-DB_PATH = "database.db"
+BOT_TOKEN      = "8794090676:AAHS-qb5r5OyNQaFq1xF3uwXh7tOFFqosXs"
+GROUP_ID       = "-1003932633365"
+BOT_USERNAME   = "mafia_revolutionclub_bot"
+APP_NAME       = "app"
+DB_PATH        = "database.db"
 
 # ══ БАЗА ДАННЫХ ══
 def init_db():
@@ -94,7 +94,7 @@ def db_save_game(game: dict):
         game['location_address'], game['location_url'], game['photo_url'],
         game.get('max_slots', 15),
         json.dumps(game.get('players', []), ensure_ascii=False),
-        json.dumps(game.get('reserve', []), ensure_ascii=False),
+        json.dumps(game.get('reserve', []),  ensure_ascii=False),
         game.get('telegram_message_id')
     ))
     game_id = c.lastrowid
@@ -119,7 +119,7 @@ def db_update_game(game: dict):
         game['location_address'], game['location_url'], game['photo_url'],
         game.get('max_slots', 15),
         json.dumps(game.get('players', []), ensure_ascii=False),
-        json.dumps(game.get('reserve', []), ensure_ascii=False),
+        json.dumps(game.get('reserve', []),  ensure_ascii=False),
         game.get('telegram_message_id'),
         game['id']
     ))
@@ -139,6 +139,7 @@ class PlayerEntry(BaseModel):
     nickname: Optional[str] = ""
     tg_profile: str
     user_id: int
+    photo_url: Optional[str] = ""
 
 class GameModel(BaseModel):
     id: Optional[int] = None
@@ -172,9 +173,9 @@ def sync_with_telegram(game: dict):
         for i in range(1, 16):
             if i <= len(players):
                 p = players[i-1]
-                nick = f" «{p['nickname']}»" if p.get('nickname', '').strip() else ""
-                tg = f" @{p['tg_profile'].replace('@','')}" if p['tg_profile'] != "нет" else ""
-                p_list += f"{i}) {p['name']}{nick}{tg}\n"
+                nick = f" «{p['nickname']}»" if p.get('nickname','').strip() else ""
+                # ✅ Без TG ссылок в посте
+                p_list += f"{i}) {p['name']}{nick}\n"
             else:
                 p_list += f"{i})\n"
 
@@ -207,10 +208,8 @@ def sync_with_telegram(game: dict):
             filename = game['photo_url'].split("/uploads/")[-1]
             filepath = os.path.join(UPLOAD_DIR, filename)
             print(f"[TG] Читаем файл с диска: {filepath}")
-
             with open(filepath, "rb") as f:
                 raw = f.read()
-
             img = Image.open(io.BytesIO(raw))
             if img.mode in ("RGBA", "P", "LA"):
                 img = img.convert("RGB")
@@ -218,7 +217,6 @@ def sync_with_telegram(game: dict):
             img.save(jpeg_buffer, format="JPEG", quality=90)
             jpeg_bytes = jpeg_buffer.getvalue()
             print(f"[TG] JPEG размер: {len(jpeg_bytes)} байт")
-
             files = {"photo": ("photo.jpg", jpeg_bytes, "image/jpeg")}
             data  = {"chat_id": GROUP_ID, "caption": text, "parse_mode": "Markdown"}
             res   = requests.post(tg_url + "sendPhoto", data=data, files=files)
@@ -247,7 +245,6 @@ def sync_with_telegram(game: dict):
             res = requests.post(tg_url + method, json=payload)
 
         print(f"[TG] Статус: {res.status_code} | Ответ: {res.text}")
-
         res_json = res.json()
         if res_json.get("ok") and not game['telegram_message_id']:
             game['telegram_message_id'] = res_json["result"]["message_id"]
@@ -277,7 +274,7 @@ async def read_index():
 async def upload_photo(file: UploadFile = File(...)):
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Файл должен быть изображением")
-    ext = file.filename.split(".")[-1]
+    ext      = file.filename.split(".")[-1]
     filename = f"{uuid.uuid4().hex}.{ext}"
     filepath = os.path.join(UPLOAD_DIR, filename)
     with open(filepath, "wb") as buffer:
@@ -298,7 +295,6 @@ async def add_game(game: GameModel):
     game_id = db_save_game(g)
     g['id'] = game_id
     sync_with_telegram(g)
-    # Сохраняем telegram_message_id обратно в БД
     db_update_game(g)
     return {"status": "ok", "id": game_id}
 
@@ -308,11 +304,10 @@ async def edit_game(game_id: int, game: GameModel):
     if not existing:
         raise HTTPException(status_code=404, detail="Игра не найдена")
     updated = game.dict()
-    updated['id'] = game_id
-    updated['players'] = existing['players']
-    updated['reserve']  = existing['reserve']
-    updated['telegram_message_id'] = existing['telegram_message_id']
-    # Если фото не изменилось — оставляем старое
+    updated['id']                   = game_id
+    updated['players']              = existing['players']
+    updated['reserve']               = existing['reserve']
+    updated['telegram_message_id']  = existing['telegram_message_id']
     if not updated['photo_url']:
         updated['photo_url'] = existing['photo_url']
     db_update_game(updated)
@@ -351,17 +346,15 @@ async def cancel(game_id: int, user_id: int):
 @app.delete("/delete_game/{game_id}")
 async def delete_game(game_id: int):
     g = db_get_game(game_id)
-    if not g: raise HTTPException(status_code=404, detail="Игра не найдена")
-    # Удаляем пост в Telegram
+    if not g:
+        raise HTTPException(status_code=404, detail="Игра не найдена")
     if g['telegram_message_id']:
         delete_telegram_message(g['telegram_message_id'])
-    # Удаляем фото с диска
     if g['photo_url']:
         try:
             filename = g['photo_url'].split("/uploads/")[-1]
             filepath = os.path.join(UPLOAD_DIR, filename)
-            if os.path.exists(filepath):
-                os.remove(filepath)
+            if os.path.exists(filepath): os.remove(filepath)
         except Exception as e:
             print(f"Ошибка удаления файла: {e}")
     db_delete_game(game_id)
