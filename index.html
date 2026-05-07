@@ -3,185 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Mafia Revolution</title>
+    <title>Admin Mafia</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        :root { --tg-theme-bg-color: #ffffff; --tg-theme-button-color: #3390ec; }
-        body { font-family: sans-serif; background: var(--tg-theme-bg-color); margin: 0; padding: 10px; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .card { background: #f4f4f5; border-radius: 12px; padding: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        body { font-family: sans-serif; padding: 10px; background: #fff; }
         .nav { display: flex; gap: 5px; margin-bottom: 15px; }
-        .tab-btn { flex: 1; padding: 10px; border: none; border-radius: 10px; background: #eee; font-weight: bold; }
-        .active-tab { background: var(--tg-theme-button-color); color: white; }
-        .modal { position: fixed; top:0; left:0; width:100%; height:100%; background:white; display:none; padding:15px; box-sizing:border-box; z-index:100; overflow-y:auto;}
-        .active { display:block; }
-        .hidden { display:none; }
-        input, textarea { width: 100%; padding: 12px; margin: 5px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; font-family: inherit; }
-        textarea { height: 100px; resize: none; }
-        button { width: 100%; padding: 12px; border: none; border-radius: 8px; background: var(--tg-theme-button-color); color: white; font-weight: bold; margin-top: 10px; }
-        .p-table { width: 100%; border-collapse: collapse; font-size: 0.85em; margin-top: 10px; }
-        .p-table td { padding: 8px 4px; border-bottom: 1px solid #eee; }
+        .tab-btn { flex: 1; padding: 10px; border: none; border-radius: 8px; background: #eee; }
+        .active-tab { background: #3390ec; color: white; }
+        .hidden { display: none; }
+        input, textarea { width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        textarea { height: 80px; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 8px; background: #3390ec; color: white; font-weight: bold; margin-top: 10px; }
+        .card { background: #f4f4f5; padding: 10px; border-radius: 10px; margin-bottom: 10px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     </style>
 </head>
 <body>
     <div class="nav">
         <button id="btn-main" class="tab-btn active-tab" onclick="showTab('main')">Игры</button>
-        <button id="btn-me" class="tab-btn" onclick="showTab('me')">Профиль</button>
         <button id="btn-admin" class="tab-btn hidden" onclick="showTab('admin')">Админ</button>
     </div>
 
-    <div id="tab-main"><div id="games-grid" class="grid">Загрузка...</div></div>
-    
-    <div id="tab-me" class="hidden">
-        <h3>Мой профиль</h3>
-        <input id="u-name" placeholder="Ваше Имя">
-        <input id="u-nick" placeholder="Игровой Ник">
-        <button onclick="saveProfile()">Сохранить данные</button>
-        <div id="my-records"></div>
-    </div>
+    <div id="tab-main"><div id="games-grid" class="grid"></div></div>
 
     <div id="tab-admin" class="hidden">
-        <h3>Добавить игру</h3>
-        <input id="g-title" placeholder="Короткое название (для сетки)">
+        <h3>Настройка поста</h3>
+        <input id="g-title" placeholder="Городская Мафия (заголовок)">
+        <input id="g-type" placeholder="Вайбовый стол (тип стола)">
         <input id="g-date" placeholder="10 МАЯ, Воскресенье">
-        <input id="g-duration" placeholder="18:00 | Четыре игры">
-        <textarea id="g-desc" placeholder="Художественное описание (Вайбовая мафия, подходит тем-то...)"></textarea>
-        <input id="g-master" placeholder="Ведущий: Актриса Таисия">
-        <input id="g-loc" placeholder="Локация (Адрес)">
-        <input id="g-loc-url" placeholder="Ссылка на карту (https://...)">
-        <input id="g-cost" placeholder="Стоимость (800 рублей)">
-        <input id="g-slots" type="number" value="15" placeholder="Количество мест">
-        <input id="g-photo" placeholder="Ссылка на фото 1:1">
-        <button onclick="saveGame()">Создать и опубликовать</button>
-    </div>
-
-    <div id="game-modal" class="modal">
-        <button onclick="closeModal()">⬅ Назад</button>
-        <div id="modal-content"></div>
+        <textarea id="g-desc" placeholder="Описание (Воскресенье на экваторе мая...)"></textarea>
+        <input id="g-fits" placeholder="Подходит для (через запятую: Веселым, Красивым)">
+        <input id="g-notfits" placeholder="Не подходит для (через запятую: Токсикам)">
+        <input id="g-time" placeholder="18:00 | Четыре игры">
+        <input id="g-cost" placeholder="800 рублей">
+        <input id="g-master" placeholder="Актриса Таисия">
+        <input id="g-loc" placeholder="Адрес локации">
+        <input id="g-loc-url" placeholder="Ссылка на карты">
+        <input id="g-photo" placeholder="Ссылка на фото (прямая ссылка .jpg)">
+        <button onclick="saveGame()">Опубликовать в Telegram</button>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         const API = "https://mafia-k0kq.onrender.com";
         const ADMIN_ID = 2111239214;
-        const MY_ID = tg.initDataUnsafe.user?.id || 12345;
-        const MY_TG = tg.initDataUnsafe.user?.username ? "@" + tg.initDataUnsafe.user.username : "нет";
         
-        let games = [];
-        let profile = JSON.parse(localStorage.getItem('m_prof')) || null;
+        if (tg.initDataUnsafe.user?.id === ADMIN_ID) document.getElementById('btn-admin').classList.remove('hidden');
 
-        if (MY_ID === ADMIN_ID) document.getElementById('btn-admin').classList.remove('hidden');
-        if (profile) {
-            document.getElementById('u-name').value = profile.name;
-            document.getElementById('u-nick').value = profile.nick;
-        }
-
-        async function loadData() {
-            try {
-                const r = await fetch(API + "/games");
-                games = await r.json();
-                renderGames();
-                renderMyRecords();
-            } catch (e) { document.getElementById('games-grid').innerText = "Ошибка связи"; }
-        }
-
-        function renderGames() {
+        async function load() {
+            const r = await fetch(API + "/games");
+            const games = await r.json();
             document.getElementById('games-grid').innerHTML = games.map(g => `
-                <div class="card" onclick="openGame(${g.id})">
-                    ${g.photo_url ? `<img src="${g.photo_url}" style="width:100%; height:80px; object-fit:cover; border-radius:8px; margin-bottom:5px;">` : ''}
-                    <b>${g.title}</b><br>
-                    <small style="color:gray;">Мест: ${g.max_slots - g.players.length}</small>
+                <div class="card">
+                    <b>${g.title}</b><br><small>${g.date_time}</small>
                 </div>
-            `).join('') || "Игр нет";
-        }
-
-        function openGame(id) {
-            const g = games.find(x => x.id === id);
-            const signed = [...g.players, ...g.reserve].some(p => p.user_id === MY_ID);
-            document.getElementById('modal-content').innerHTML = `
-                ${g.photo_url ? `<img src="${g.photo_url}" style="width:100%; border-radius:12px;">` : ''}
-                <h2>${g.title}</h2>
-                <p style="white-space: pre-wrap;">${g.description}</p>
-                <hr>
-                <p>🎙 ${g.master}<br>💰 ${g.cost}</p>
-                ${!signed ? `<button onclick="reg(${g.id})">Записаться</button>` : `<button style="background:red" onclick="canc(${g.id})">Отменить запись</button>`}
-                <div style="margin-top:20px;">
-                   <b>Список:</b>
-                   <table class="p-table">${g.players.map((p,i) => `<tr><td>${i+1}.</td><td>${p.name}</td><td>${p.nickname}</td></tr>`).join('')}</table>
-                </div>
-            `;
-            if (MY_ID === ADMIN_ID) {
-                document.getElementById('modal-content').innerHTML += `<button style="background:gray; margin-top:20px;" onclick="deleteGame(${g.id})">Удалить игру</button>`;
-            }
-            document.getElementById('game-modal').classList.add('active');
-        }
-
-        async function reg(id) {
-            if(!profile) { showTab('me'); return alert("Заполните профиль!"); }
-            await fetch(API+`/register/${id}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:profile.name, nickname:profile.nick, tg_profile:MY_TG, user_id:MY_ID})});
-            closeModal(); loadData();
-        }
-
-        async function canc(id) {
-            await fetch(API+`/cancel/${id}?user_id=${MY_ID}`, {method:'POST'});
-            closeModal(); loadData();
+            `).join('');
         }
 
         async function saveGame() {
             const data = {
                 title: document.getElementById('g-title').value,
+                table_type: document.getElementById('g-type').value,
                 date_time: document.getElementById('g-date').value,
                 description: document.getElementById('g-desc').value,
+                fits: document.getElementById('g-fits').value,
+                not_fits: document.getElementById('g-notfits').value,
+                duration: document.getElementById('g-time').value,
+                cost: document.getElementById('g-cost').value,
                 master: document.getElementById('g-master').value,
                 location: document.getElementById('g-loc').value,
                 location_url: document.getElementById('g-loc-url').value,
-                cost: document.getElementById('g-cost').value,
-                duration: document.getElementById('g-duration').value,
-                max_slots: parseInt(document.getElementById('g-slots').value),
                 photo_url: document.getElementById('g-photo').value,
-                players: [], reserve: []
+                max_slots: 15, players: [], reserve: []
             };
             await fetch(API + "/add_game", { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
             location.reload();
         }
 
-        async function deleteGame(id) {
-            if(confirm("Удалить игру?")) {
-                await fetch(API+`/delete_game/${id}`, {method:'DELETE'});
-                location.reload();
-            }
-        }
-
-        function saveProfile() {
-            const name = document.getElementById('u-name').value;
-            const nick = document.getElementById('u-nick').value;
-            if(!name) return alert("Имя обязательно");
-            profile = {name, nick};
-            localStorage.setItem('m_prof', JSON.stringify(profile));
-            alert("Профиль сохранен!");
-        }
-
-        function renderMyRecords() {
-            const my = games.filter(g => [...g.players, ...g.reserve].some(p => p.user_id === MY_ID));
-            document.getElementById('my-records').innerHTML = my.map(g => `
-                <div class="card" style="margin-top:10px;">
-                    <b>${g.title}</b><br>${g.date_time}<br>
-                    <button style="background:red; padding:5px; font-size:0.7em;" onclick="canc(${g.id})">Отменить запись</button>
-                </div>
-            `).join('') || "Записей нет";
-        }
-
         function showTab(t) {
-            ['main','me','admin'].forEach(x => {
-                document.getElementById('tab-'+x).classList.add('hidden');
-                document.getElementById('btn-'+x).classList.remove('active-tab');
-            });
-            document.getElementById('tab-'+t).classList.remove('hidden');
-            document.getElementById('btn-'+t).classList.add('active-tab');
+            document.getElementById('tab-main').classList.add('hidden');
+            document.getElementById('tab-admin').classList.add('hidden');
+            document.getElementById('tab-' + t).classList.remove('hidden');
         }
-        function closeModal() { document.getElementById('game-modal').classList.remove('active'); }
 
-        loadData();
+        load();
     </script>
 </body>
 </html>
