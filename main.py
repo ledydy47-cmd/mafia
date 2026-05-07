@@ -8,14 +8,8 @@ import requests
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# --- ТВОИ ДАННЫЕ (УЖЕ ВПИСАНЫ) ---
 BOT_TOKEN = "8794090676:AAHS-qb5r5OyNQaFq1xF3uwXh7tOFFqosXs"
 GROUP_ID = "-1003932633365"
 BOT_USERNAME = "mafia_revolutionclub_bot"
@@ -31,12 +25,13 @@ class GameModel(BaseModel):
     id: Optional[int] = None
     title: str
     date_time: str
-    master: str = "Не указан"
-    location: str
+    description: Optional[str] = "" # Новое поле для "Вайбового описания"
+    master: str = ""
+    location: str = ""
     location_url: Optional[str] = ""
-    cost: str = "Не указана"
-    duration: str = "Не указано"
-    max_slots: int
+    cost: str = ""
+    duration: str = ""
+    max_slots: int = 15
     photo_url: Optional[str] = ""
     players: List[PlayerEntry] = []
     reserve: List[PlayerEntry] = []
@@ -45,61 +40,71 @@ class GameModel(BaseModel):
 db_games: List[GameModel] = []
 
 def sync_with_telegram(game: GameModel):
-    """Отправка и обновление поста в Telegram"""
     try:
-        # Ссылка на конкретную игру
         direct_link = f"https://t.me/{BOT_USERNAME}/{APP_NAME}?startapp=game_{game.id}"
         
-        # Список участников (нумерованный)
-        p_list = ""
-        for i, p in enumerate(game.players):
-            p_list += f"{i+1}. {p.name} {f'({p.nickname})' if p.nickname else ''} — {p.tg_profile}\n"
-        if not p_list: p_list = "Пока никого нет"
+        # Формируем нумерованный список участников (всегда 15 строк)
+        players_list = ""
+        for i in range(1, 16):
+            if i <= len(game.players):
+                p = game.players[i-1]
+                tg = f" @{p.tg_profile.replace('@','')}" if p.tg_profile != "нет" else ""
+                nick = f" {p.nickname}" if p.nickname else ""
+                players_list += f"{i}) {p.name}{nick}{tg}\n"
+            else:
+                players_list += f"{i})\n"
 
-        # Список резерва
-        r_list = ""
+        reserve_list = ""
         if game.reserve:
-            r_list = "\n*Резерв:*\n" + "\n".join([f"- {p.name}" for p in game.reserve])
+            reserve_list = "\n*Резерв:*\n" + "\n".join([f"- {p.name}" for p in game.reserve])
 
-        # Текст поста
+        # Сборка красивого поста по твоему формату
         text = (
-            f"🔥 *{game.title}*\n\n"
-            f"📅 Когда: {game.date_time}\n"
-            f"🎙 Ведущий: {game.master}\n"
-            f"📍 Место: [{game.location}]({game.location_url})\n"
-            f"💰 Стоимость: {game.cost}\n"
-            f"👥 Свободно мест: {max(0, game.max_slots - len(game.players))}\n\n"
-            f"📋 *Список участников:*\n{p_list}"
-            f"{r_list}\n\n"
-            f"👉 [ЗАПИСАТЬСЯ НА ИГРУ]({direct_link})"
+            f"*{game.date_time}, {game.title}*\n\n"
+            f"{game.description}\n\n"
+            f"📅 {game.date_time.upper()}\n"
+            f"⏰ {game.duration}\n"
+            f"💰 {game.cost}\n\n"
+            f"🎙 Ведущий: {game.master}\n\n"
+            f"📍 *Локация*\n"
+            f"{game.location}\n"
+            f"{game.location_url}\n\n"
+            f"*Участники:*\n"
+            f"{players_list}"
+            f"{reserve_list}\n"
+            f"👉 [ЗАПИСЬ]({direct_link})"
         )
 
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/"
         
         if not game.telegram_message_id:
-            # Создание нового поста
-            payload = {"chat_id": GROUP_ID, "text": text, "parse_mode": "Markdown", "disable_web_page_preview": False}
-            res = requests.post(url + "sendMessage", json=payload, timeout=10).json()
+            # Если есть ссылка на фото, шлем фото, иначе текст
+            if game.photo_url:
+                payload = {"chat_id": GROUP_ID, "photo": game.photo_url, "caption": text, "parse_mode": "Markdown"}
+                res = requests.post(url + "sendPhoto", json=payload).json()
+            else:
+                payload = {"chat_id": GROUP_ID, "text": text, "parse_mode": "Markdown", "disable_web_page_preview": False}
+                res = requests.post(url + "sendMessage", json=payload).json()
+            
             if res.get("ok"):
                 game.telegram_message_id = res["result"]["message_id"]
-            else:
-                print(f"Ошибка ТГ: {res.get('description')}")
         else:
-            # Обновление существующего поста
-            payload = {"chat_id": GROUP_ID, "message_id": game.telegram_message_id, "text": text, "parse_mode": "Markdown"}
-            requests.post(url + "editMessageText", json=payload, timeout=10)
+            if game.photo_url:
+                payload = {"chat_id": GROUP_ID, "message_id": game.telegram_message_id, "caption": text, "parse_mode": "Markdown"}
+                requests.post(url + "editMessageCaption", json=payload)
+            else:
+                payload = {"chat_id": GROUP_ID, "message_id": game.telegram_message_id, "text": text, "parse_mode": "Markdown"}
+                requests.post(url + "editMessageText", json=payload)
 
     except Exception as e:
-        print(f"Ошибка синхронизации: {e}")
+        print(f"Ошибка: {e}")
 
 @app.get("/", response_class=HTMLResponse)
 async def read_index():
-    with open("index.html", "r", encoding="utf-8") as f:
-        return f.read()
+    with open("index.html", "r", encoding="utf-8") as f: return f.read()
 
 @app.get("/games")
-async def get_games():
-    return db_games
+async def get_games(): return db_games
 
 @app.post("/add_game")
 async def add_game(game: GameModel):
@@ -112,16 +117,11 @@ async def add_game(game: GameModel):
 async def register(game_id: int, p: PlayerEntry):
     for g in db_games:
         if g.id == game_id:
-            all_p = g.players + g.reserve
-            if any(x.user_id == p.user_id for x in all_p):
-                return {"status": "already_signed"}
-            if len(g.players) < g.max_slots:
-                g.players.append(p)
-            else:
-                g.reserve.append(p)
+            if len(g.players) < g.max_slots: g.players.append(p)
+            else: g.reserve.append(p)
             sync_with_telegram(g)
             return {"status": "ok"}
-    raise HTTPException(404)
+    return {"status": "error"}
 
 @app.post("/cancel/{game_id}")
 async def cancel(game_id: int, user_id: int):
@@ -129,8 +129,7 @@ async def cancel(game_id: int, user_id: int):
         if g.id == game_id:
             g.players = [p for p in g.players if p.user_id != user_id]
             g.reserve = [p for p in g.reserve if p.user_id != user_id]
-            if len(g.players) < g.max_slots and g.reserve:
-                g.players.append(g.reserve.pop(0))
+            if len(g.players) < g.max_slots and g.reserve: g.players.append(g.reserve.pop(0))
             sync_with_telegram(g)
             return {"status": "ok"}
     return {"status": "error"}
