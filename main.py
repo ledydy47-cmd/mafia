@@ -14,7 +14,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Модели данных
 class PlayerEntry(BaseModel):
     name: str
     nickname: Optional[str] = ""
@@ -35,7 +34,6 @@ class GameModel(BaseModel):
     players: List[PlayerEntry] = []
     reserve: List[PlayerEntry] = []
 
-# Временная база данных
 db_games: List[GameModel] = []
 
 @app.get("/", response_class=HTMLResponse)
@@ -58,7 +56,7 @@ async def edit_game(game_id: int, updated_game: GameModel):
     for i, game in enumerate(db_games):
         if game.id == game_id:
             updated_game.id = game_id
-            updated_game.players = game.players # Сохраняем игроков
+            updated_game.players = game.players
             updated_game.reserve = game.reserve
             db_games[i] = updated_game
             return {"status": "updated"}
@@ -74,18 +72,15 @@ async def delete_game(game_id: int):
 async def register(game_id: int, p: PlayerEntry):
     for game in db_games:
         if game.id == game_id:
-            # Проверка дубликатов по user_id
-            all_participants = game.players + game.reserve
-            if any(x.user_id == p.user_id for x in all_participants):
-                raise HTTPException(status_code=400, detail="Вы уже записаны")
-            
+            all_p = game.players + game.reserve
+            if any(x.user_id == p.user_id for x in all_p):
+                raise HTTPException(status_code=400, detail="Already signed")
             if len(game.players) < game.max_slots:
                 game.players.append(p)
-                return {"status": "main_list"}
             else:
                 game.reserve.append(p)
-                return {"status": "reserve"}
-    raise HTTPException(status_code=404, detail="Игра не найдена")
+            return {"status": "ok"}
+    raise HTTPException(status_code=404, detail="Not found")
 
 @app.post("/cancel/{game_id}")
 async def cancel(game_id: int, user_id: int):
@@ -93,9 +88,7 @@ async def cancel(game_id: int, user_id: int):
         if game.id == game_id:
             game.players = [p for p in game.players if p.user_id != user_id]
             game.reserve = [p for p in game.reserve if p.user_id != user_id]
-            # Если освободилось место, двигаем из резерва
             if len(game.players) < game.max_slots and game.reserve:
-                promoted = game.reserve.pop(0)
-                game.players.append(promoted)
-            return {"status": "cancelled"}
+                game.players.append(game.reserve.pop(0))
+            return {"status": "ok"}
     return {"status": "error"}
