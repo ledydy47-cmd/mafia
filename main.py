@@ -48,15 +48,18 @@ def sync_with_telegram(game: GameModel):
     try:
         direct_link = f"https://t.me/{BOT_USERNAME}/{APP_NAME}?startapp=game_{game.id}"
         
+        # 1. Формируем список участников
         players_list = ""
         for i, p in enumerate(game.players):
             players_list += f"{i+1}. {p.name} {f'({p.nickname})' if p.nickname else ''} — {p.tg_profile}\n"
         if not players_list: players_list = "Пока никого нет"
 
-        reserve_list_text = ""
+        # 2. Формируем список резерва
+        final_reserve_text = ""
         if game.reserve:
-            reserve_list_text = "\n*Резерв:*\n" + "\n".join([f"- {p.name}" for p in game.reserve])
+            final_reserve_text = "\n*Резерв:*\n" + "\n".join([f"- {p.name}" for p in game.reserve])
 
+        # 3. Собираем текст сообщения
         text = (
             f"🔥 *{game.title}*\n\n"
             f"📅 *Когда:* {game.date_time}\n"
@@ -66,21 +69,30 @@ def sync_with_telegram(game: GameModel):
             f"💰 *Стоимость:* {game.cost}\n"
             f"👥 *Свободно мест:* {max(0, game.max_slots - len(game.players))}\n\n"
             f"📋 *Список участников:*\n{players_list}"
-            f"{reserve_list_text}\n\n"
+            f"{final_reserve_text}\n\n"
             f"👉 [ЗАПИСАТЬСЯ НА ЭТУ ИГРУ]({direct_link})"
         )
 
+        # 4. Отправка в Телеграм
         if not game.telegram_message_id:
             url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
             payload = {"chat_id": GROUP_ID, "text": text, "parse_mode": "Markdown", "disable_web_page_preview": False}
             res = requests.post(url, json=payload).json()
-            if res.get("ok"): game.telegram_message_id = res["result"]["message_id"]
+            if res.get("ok"): 
+                game.telegram_message_id = res["result"]["message_id"]
+            else:
+                print(f"Ошибка ТГ при создании: {res.get('description')}")
         else:
             url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
             payload = {"chat_id": GROUP_ID, "message_id": game.telegram_message_id, "text": text, "parse_mode": "Markdown"}
-            requests.post(url, json=payload)
+            res = requests.post(url, json=payload).json()
+            if not res.get("ok"):
+                print(f"Ошибка ТГ при редактировании: {res.get('description')}")
+
     except Exception as e:
-        print(f"Ошибка ТГ: {e}")
+        print(f"Критическая ошибка синхронизации: {e}")
+
+
 
 @app.get("/", response_class=HTMLResponse)
 async def read_index():
