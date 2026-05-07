@@ -3,19 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Admin Mafia</title>
+    <title>Mafia Admin</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 10px; background: #fff; }
+        body { font-family: sans-serif; padding: 10px; background: #fff; margin: 0; }
         .nav { display: flex; gap: 5px; margin-bottom: 15px; }
-        .tab-btn { flex: 1; padding: 10px; border: none; border-radius: 8px; background: #eee; }
+        .tab-btn { flex: 1; padding: 10px; border: none; border-radius: 8px; background: #eee; font-weight: bold; }
         .active-tab { background: #3390ec; color: white; }
         .hidden { display: none; }
-        input, textarea { width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
-        textarea { height: 80px; }
-        button { width: 100%; padding: 12px; border: none; border-radius: 8px; background: #3390ec; color: white; font-weight: bold; margin-top: 10px; }
-        .card { background: #f4f4f5; padding: 10px; border-radius: 10px; margin-bottom: 10px; }
+        .form-section { background: #f4f4f5; padding: 15px; border-radius: 12px; margin-bottom: 80px; }
+        label { display: block; font-size: 12px; color: #666; margin-top: 10px; }
+        input, textarea { width: 100%; padding: 12px; margin-top: 4px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
+        textarea { height: 100px; resize: none; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .card { background: #f4f4f5; padding: 10px; border-radius: 10px; }
+        .fixed-btn { position: fixed; bottom: 10px; left: 10px; right: 10px; z-index: 10; }
+        button { width: 100%; padding: 15px; border: none; border-radius: 10px; background: #3390ec; color: white; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -27,20 +30,58 @@
     <div id="tab-main"><div id="games-grid" class="grid"></div></div>
 
     <div id="tab-admin" class="hidden">
-        <h3>Настройка поста</h3>
-        <input id="g-title" placeholder="Городская Мафия (заголовок)">
-        <input id="g-type" placeholder="Вайбовый стол (тип стола)">
-        <input id="g-date" placeholder="10 МАЯ, Воскресенье">
-        <textarea id="g-desc" placeholder="Описание (Воскресенье на экваторе мая...)"></textarea>
-        <input id="g-fits" placeholder="Подходит для (через запятую: Веселым, Красивым)">
-        <input id="g-notfits" placeholder="Не подходит для (через запятую: Токсикам)">
-        <input id="g-time" placeholder="18:00 | Четыре игры">
-        <input id="g-cost" placeholder="800 рублей">
-        <input id="g-master" placeholder="Актриса Таисия">
-        <input id="g-loc" placeholder="Адрес локации">
-        <input id="g-loc-url" placeholder="Ссылка на карты">
-        <input id="g-photo" placeholder="Ссылка на фото (прямая ссылка .jpg)">
-        <button onclick="saveGame()">Опубликовать в Telegram</button>
+        <div class="form-section">
+            <h3>Конструктор поста</h3>
+            
+            <label>Дата (напр. 10 мая)</label>
+            <input id="g-date" placeholder="10 мая">
+
+            <label>Тип стола (напр. Вайбовый стол)</label>
+            <input id="g-type" placeholder="Вайбовый стол">
+
+            <label>Название игры (напр. Городская Мафия)</label>
+            <input id="g-title" placeholder="Городская Мафия">
+
+            <label>Описание (основной текст)</label>
+            <textarea id="g-desc" placeholder="Воскресенье на экваторе мая..."></textarea>
+
+            <label>Подходит для (через запятую)</label>
+            <input id="g-fits" placeholder="Красивым, Веселым, Остроумным">
+
+            <label>Не подходит для (через запятую)</label>
+            <input id="g-notfits" placeholder="Токсикам">
+
+            <label>День недели</label>
+            <input id="g-day" placeholder="Воскресенье">
+
+            <label>Время начала</label>
+            <input id="g-time" placeholder="18:00">
+
+            <label>Количество игр</label>
+            <input id="g-count" placeholder="Четыре игры">
+
+            <label>Цена</label>
+            <input id="g-cost" placeholder="800 рублей">
+
+            <label>Ведущий</label>
+            <input id="g-master" placeholder="Актриса Таисия">
+
+            <label>Название локации</label>
+            <input id="g-loc-name" placeholder="Локация">
+
+            <label>Адрес</label>
+            <input id="g-loc-addr" placeholder="Парадная, Малые Каменщики 16...">
+
+            <label>Ссылка на карту (URL)</label>
+            <input id="g-loc-url" placeholder="https://yandex.ru/maps/...">
+
+            <label>Ссылка на фото (1:1)</label>
+            <input id="g-photo" placeholder="https://...">
+
+            <div class="fixed-btn">
+                <button onclick="saveGame()">ОПУБЛИКОВАТЬ ПОСТ</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -54,29 +95,35 @@
             const r = await fetch(API + "/games");
             const games = await r.json();
             document.getElementById('games-grid').innerHTML = games.map(g => `
-                <div class="card">
-                    <b>${g.title}</b><br><small>${g.date_time}</small>
+                <div class="card" onclick="alert('Игра создана и опубликована!')">
+                    <b>${g.title}</b><br><small>${g.game_date}</small>
                 </div>
-            `).join('');
+            `).join('') || "Игр пока нет";
         }
 
         async function saveGame() {
             const data = {
-                title: document.getElementById('g-title').value,
+                game_date: document.getElementById('g-date').value,
                 table_type: document.getElementById('g-type').value,
-                date_time: document.getElementById('g-date').value,
+                title: document.getElementById('g-title').value,
                 description: document.getElementById('g-desc').value,
                 fits: document.getElementById('g-fits').value,
                 not_fits: document.getElementById('g-notfits').value,
-                duration: document.getElementById('g-time').value,
+                game_day: document.getElementById('g-day').value,
+                time_start: document.getElementById('g-time').value,
+                games_count: document.getElementById('g-count').value,
                 cost: document.getElementById('g-cost').value,
                 master: document.getElementById('g-master').value,
-                location: document.getElementById('g-loc').value,
+                location_name: document.getElementById('g-loc-name').value,
+                location_address: document.getElementById('g-loc-addr').value,
                 location_url: document.getElementById('g-loc-url').value,
                 photo_url: document.getElementById('g-photo').value,
                 max_slots: 15, players: [], reserve: []
             };
+            
+            tg.MainButton.setText("ПУБЛИКАЦИЯ...").show();
             await fetch(API + "/add_game", { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
+            tg.MainButton.hide();
             location.reload();
         }
 
