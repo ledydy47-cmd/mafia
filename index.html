@@ -16,7 +16,8 @@
         .modal { position: fixed; top:0; left:0; width:100%; height:100%; background:white; display:none; padding:15px; box-sizing:border-box; z-index:100; overflow-y:auto;}
         .active { display:block; }
         .hidden { display:none; }
-        input { width: 100%; padding: 12px; margin: 5px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
+        input, textarea { width: 100%; padding: 12px; margin: 5px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; font-family: inherit; }
+        textarea { height: 100px; resize: none; }
         button { width: 100%; padding: 12px; border: none; border-radius: 8px; background: var(--tg-theme-button-color); color: white; font-weight: bold; margin-top: 10px; }
         .p-table { width: 100%; border-collapse: collapse; font-size: 0.85em; margin-top: 10px; }
         .p-table td { padding: 8px 4px; border-bottom: 1px solid #eee; }
@@ -36,18 +37,21 @@
         <input id="u-name" placeholder="Ваше Имя">
         <input id="u-nick" placeholder="Игровой Ник">
         <button onclick="saveProfile()">Сохранить данные</button>
-        <div id="my-records" style="margin-top:20px;"></div>
+        <div id="my-records"></div>
     </div>
 
     <div id="tab-admin" class="hidden">
         <h3>Добавить игру</h3>
-        <input id="g-title" placeholder="Название">
-        <input id="g-date" placeholder="Дата и время">
-        <input id="g-master" placeholder="Ведущий">
-        <input id="g-loc" placeholder="Локация">
-        <input id="g-loc-url" placeholder="Ссылка на карту">
-        <input id="g-cost" placeholder="Стоимость">
-        <input id="g-slots" type="number" placeholder="Количество мест">
+        <input id="g-title" placeholder="Короткое название (для сетки)">
+        <input id="g-date" placeholder="10 МАЯ, Воскресенье">
+        <input id="g-duration" placeholder="18:00 | Четыре игры">
+        <textarea id="g-desc" placeholder="Художественное описание (Вайбовая мафия, подходит тем-то...)"></textarea>
+        <input id="g-master" placeholder="Ведущий: Актриса Таисия">
+        <input id="g-loc" placeholder="Локация (Адрес)">
+        <input id="g-loc-url" placeholder="Ссылка на карту (https://...)">
+        <input id="g-cost" placeholder="Стоимость (800 рублей)">
+        <input id="g-slots" type="number" value="15" placeholder="Количество мест">
+        <input id="g-photo" placeholder="Ссылка на фото 1:1">
         <button onclick="saveGame()">Создать и опубликовать</button>
     </div>
 
@@ -84,8 +88,8 @@
         function renderGames() {
             document.getElementById('games-grid').innerHTML = games.map(g => `
                 <div class="card" onclick="openGame(${g.id})">
+                    ${g.photo_url ? `<img src="${g.photo_url}" style="width:100%; height:80px; object-fit:cover; border-radius:8px; margin-bottom:5px;">` : ''}
                     <b>${g.title}</b><br>
-                    <small>${g.date_time}</small><br>
                     <small style="color:gray;">Мест: ${g.max_slots - g.players.length}</small>
                 </div>
             `).join('') || "Игр нет";
@@ -95,14 +99,20 @@
             const g = games.find(x => x.id === id);
             const signed = [...g.players, ...g.reserve].some(p => p.user_id === MY_ID);
             document.getElementById('modal-content').innerHTML = `
+                ${g.photo_url ? `<img src="${g.photo_url}" style="width:100%; border-radius:12px;">` : ''}
                 <h2>${g.title}</h2>
-                <p>🕒 ${g.date_time}<br>🎙 ${g.master}<br>📍 ${g.location}</p>
+                <p style="white-space: pre-wrap;">${g.description}</p>
                 <hr>
-                <b>Участники (${g.players.length}/${g.max_slots}):</b>
-                <table class="p-table">${g.players.map((p,i) => `<tr><td>${i+1}.</td><td>${p.name}</td><td>${p.nickname}</td></tr>`).join('')}</table>
-                ${g.reserve.length ? `<b>Резерв:</b><table class="p-table">${g.reserve.map(p => `<tr><td>-</td><td>${p.name}</td></tr>`).join('')}</table>` : ''}
+                <p>🎙 ${g.master}<br>💰 ${g.cost}</p>
                 ${!signed ? `<button onclick="reg(${g.id})">Записаться</button>` : `<button style="background:red" onclick="canc(${g.id})">Отменить запись</button>`}
+                <div style="margin-top:20px;">
+                   <b>Список:</b>
+                   <table class="p-table">${g.players.map((p,i) => `<tr><td>${i+1}.</td><td>${p.name}</td><td>${p.nickname}</td></tr>`).join('')}</table>
+                </div>
             `;
+            if (MY_ID === ADMIN_ID) {
+                document.getElementById('modal-content').innerHTML += `<button style="background:gray; margin-top:20px;" onclick="deleteGame(${g.id})">Удалить игру</button>`;
+            }
             document.getElementById('game-modal').classList.add('active');
         }
 
@@ -121,15 +131,25 @@
             const data = {
                 title: document.getElementById('g-title').value,
                 date_time: document.getElementById('g-date').value,
+                description: document.getElementById('g-desc').value,
                 master: document.getElementById('g-master').value,
                 location: document.getElementById('g-loc').value,
                 location_url: document.getElementById('g-loc-url').value,
                 cost: document.getElementById('g-cost').value,
+                duration: document.getElementById('g-duration').value,
                 max_slots: parseInt(document.getElementById('g-slots').value),
-                duration: "Весь вечер", players: [], reserve: []
+                photo_url: document.getElementById('g-photo').value,
+                players: [], reserve: []
             };
             await fetch(API + "/add_game", { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
             location.reload();
+        }
+
+        async function deleteGame(id) {
+            if(confirm("Удалить игру?")) {
+                await fetch(API+`/delete_game/${id}`, {method:'DELETE'});
+                location.reload();
+            }
         }
 
         function saveProfile() {
@@ -148,7 +168,7 @@
                     <b>${g.title}</b><br>${g.date_time}<br>
                     <button style="background:red; padding:5px; font-size:0.7em;" onclick="canc(${g.id})">Отменить запись</button>
                 </div>
-            `).join('') || "У вас нет активных записей";
+            `).join('') || "Записей нет";
         }
 
         function showTab(t) {
@@ -161,13 +181,7 @@
         }
         function closeModal() { document.getElementById('game-modal').classList.remove('active'); }
 
-        loadData().then(() => {
-            const sp = tg.initDataUnsafe.start_param;
-            if (sp && sp.startsWith('game_')) {
-                const gid = parseInt(sp.replace('game_', ''));
-                setTimeout(() => openGame(gid), 500);
-            }
-        });
+        loadData();
     </script>
 </body>
 </html>
