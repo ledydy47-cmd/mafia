@@ -1,12 +1,23 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 import requests
+import shutil
+import os
+import uuid
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# Папка для хранения загруженных фото
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Раздаём папку uploads как статику по пути /uploads/...
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 BOT_TOKEN = "8794090676:AAHS-qb5r5OyNQaFq1xF3uwXh7tOFFqosXs"
 GROUP_ID = "-1003932633365"
@@ -42,6 +53,26 @@ class GameModel(BaseModel):
     telegram_message_id: Optional[int] = None
 
 db_games: List[GameModel] = []
+
+# ✅ НОВЫЙ ЭНДПОИНТ — загрузка фото с устройства
+@app.post("/upload_photo")
+async def upload_photo(file: UploadFile = File(...)):
+    # Проверяем что это картинка
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Файл должен быть изображением")
+    
+    # Генерируем уникальное имя файла, сохраняем расширение
+    ext = file.filename.split(".")[-1]
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    
+    # Сохраняем файл на диск
+    with open(filepath, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    # Возвращаем публичный URL файла
+    photo_url = f"https://mafia-k0kq.onrender.com/uploads/{filename}"
+    return {"photo_url": photo_url}
 
 def sync_with_telegram(game: GameModel):
     try:
