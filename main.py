@@ -103,15 +103,19 @@ def sync_with_telegram(game: GameModel):
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/"
 
         if game.photo_url and not game.telegram_message_id:
-            print(f"[TG] Скачиваем фото: {game.photo_url}")
-            photo_response = requests.get(game.photo_url, timeout=15)
-            print(f"[TG] Фото скачано, размер: {len(photo_response.content)} байт")
+            # ✅ Читаем файл прямо с диска — не скачиваем по URL!
+            filename = game.photo_url.split("/uploads/")[-1]
+            filepath = os.path.join(UPLOAD_DIR, filename)
+            print(f"[TG] Читаем файл с диска: {filepath}")
 
-            # ✅ Конвертируем любой формат (webp, png, etc.) в JPEG через Pillow
             from PIL import Image
             import io
-            img = Image.open(io.BytesIO(photo_response.content))
-            # Конвертируем в RGB (на случай если RGBA или P режим)
+
+            with open(filepath, "rb") as f:
+                raw = f.read()
+
+            # Конвертируем в JPEG (webp, png, heic → jpg)
+            img = Image.open(io.BytesIO(raw))
             if img.mode in ("RGBA", "P", "LA"):
                 img = img.convert("RGB")
             jpeg_buffer = io.BytesIO()
