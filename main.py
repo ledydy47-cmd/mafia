@@ -3,11 +3,9 @@ from pydantic import BaseModel
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-import os
 import requests
 
 app = FastAPI()
-
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 BOT_TOKEN = "8794090676:AAHS-qb5r5OyNQaFq1xF3uwXh7tOFFqosXs"
@@ -25,10 +23,13 @@ class GameModel(BaseModel):
     id: Optional[int] = None
     title: str
     date_time: str
-    description: Optional[str] = "" # Новое поле для "Вайбового описания"
+    table_type: str = "Вайбовый стол" # Тип стола
+    description: str = ""
+    fits: str = "" # Подходит для
+    not_fits: str = "" # Не подходит для
     master: str = ""
     location: str = ""
-    location_url: Optional[str] = ""
+    location_url: str = ""
     cost: str = ""
     duration: str = ""
     max_slots: int = 15
@@ -43,25 +44,25 @@ def sync_with_telegram(game: GameModel):
     try:
         direct_link = f"https://t.me/{BOT_USERNAME}/{APP_NAME}?startapp=game_{game.id}"
         
-        # Формируем нумерованный список участников (всегда 15 строк)
+        # Нумерованный список 1-15
         players_list = ""
         for i in range(1, 16):
             if i <= len(game.players):
                 p = game.players[i-1]
-                tg = f" @{p.tg_profile.replace('@','')}" if p.tg_profile != "нет" else ""
-                nick = f" {p.nickname}" if p.nickname else ""
-                players_list += f"{i}) {p.name}{nick}{tg}\n"
+                players_list += f"{i}) {p.name} {p.nickname} @{p.tg_profile.replace('@','')}\n"
             else:
                 players_list += f"{i})\n"
 
-        reserve_list = ""
-        if game.reserve:
-            reserve_list = "\n*Резерв:*\n" + "\n".join([f"- {p.name}" for p in game.reserve])
+        # Формирование списков с эмодзи
+        fits_list = "\n".join([f"{item.strip()} ✅" for item in game.fits.split(',') if item.strip()])
+        not_fits_list = "\n".join([f"{item.strip()} ❌" for item in game.not_fits.split(',') if item.strip()])
 
-        # Сборка красивого поста по твоему формату
         text = (
-            f"*{game.date_time}, {game.title}*\n\n"
+            f"🖼 *{game.date_time}, {game.table_type}*\n\n"
+            f"*{game.title}*\n\n"
             f"{game.description}\n\n"
+            f"*Подходит:*\n{fits_list}\n\n"
+            f"*Не подходит:*\n{not_fits_list}\n\n"
             f"📅 {game.date_time.upper()}\n"
             f"⏰ {game.duration}\n"
             f"💰 {game.cost}\n\n"
@@ -71,33 +72,35 @@ def sync_with_telegram(game: GameModel):
             f"{game.location_url}\n\n"
             f"*Участники:*\n"
             f"{players_list}"
-            f"{reserve_list}\n"
-            f"👉 [ЗАПИСЬ]({direct_link})"
+            f"\n👉 [ЗАПИСЬ]({direct_link})"
         )
 
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/"
+        method = "sendPhoto" if game.photo_url else "sendMessage"
         
+        payload = {
+            "chat_id": GROUP_ID,
+            "parse_mode": "Markdown",
+        }
+
+        if game.photo_url:
+            payload["photo"] = game.photo_url
+            payload["caption"] = text
+        else:
+            payload["text"] = text
+
         if not game.telegram_message_id:
-            # Если есть ссылка на фото, шлем фото, иначе текст
-            if game.photo_url:
-                payload = {"chat_id": GROUP_ID, "photo": game.photo_url, "caption": text, "parse_mode": "Markdown"}
-                res = requests.post(url + "sendPhoto", json=payload).json()
-            else:
-                payload = {"chat_id": GROUP_ID, "text": text, "parse_mode": "Markdown", "disable_web_page_preview": False}
-                res = requests.post(url + "sendMessage", json=payload).json()
-            
+            res = requests.post(url + method, json=payload).json()
             if res.get("ok"):
                 game.telegram_message_id = res["result"]["message_id"]
         else:
-            if game.photo_url:
-                payload = {"chat_id": GROUP_ID, "message_id": game.telegram_message_id, "caption": text, "parse_mode": "Markdown"}
-                requests.post(url + "editMessageCaption", json=payload)
-            else:
-                payload = {"chat_id": GROUP_ID, "message_id": game.telegram_message_id, "text": text, "parse_mode": "Markdown"}
-                requests.post(url + "editMessageText", json=payload)
+            # Редактирование
+            edit_method = "editMessageCaption" if game.photo_url else "editMessageText"
+            payload["message_id"] = game.telegram_message_id
+            requests.post(url + edit_method, json=payload)
 
     except Exception as e:
-        print(f"Ошибка: {e}")
+        print(f"Error: {e}")
 
 @app.get("/", response_class=HTMLResponse)
 async def read_index():
