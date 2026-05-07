@@ -16,10 +16,10 @@ app.add_middleware(
 )
 
 # --- ВАШИ НАСТРОЙКИ ---
-BOT_TOKEN = "7292215392:AAG-P3U-8rL8S_LzH_I_lY_uF_w" # Пример, вставьте свой актуальный
-GROUP_ID = "-1002111239214"
-BOT_USERNAME = "mafia_k0kq_bot" # Пример
-APP_NAME = "play" # Пример
+BOT_TOKEN = "8794090676:AAHS-qb5r5OyNQaFq1xF3uwXh7tOFFqosXs" # Пример, вставьте свой актуальный
+GROUP_ID = "-1003932633365"
+BOT_USERNAME = "mafia_revolutionclub_bot" # Пример
+APP_NAME = "app" # Пример
 
 class PlayerEntry(BaseModel):
     name: str
