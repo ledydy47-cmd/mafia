@@ -70,7 +70,7 @@ def sync_with_telegram(game: GameModel):
         f"💰 *Стоимость:* {game.cost}\n"
         f"👥 *Свободно мест:* {max(0, game.max_slots - len(game.players))}\n\n"
         f"📋 *Список игроков:*\n{players_list}"
-        f"{reserve_list}\n\n"
+        f"{reserve_text}\n\n"
         f"👉 [ЗАПИСАТЬСЯ НА ЭТУ ИГРУ]({direct_link})"
     )
 
