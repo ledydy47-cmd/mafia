@@ -7,21 +7,16 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
-            --red: #c0392b;
-            --red-dark: #96281b;
-            --red-light: #e74c3c;
-            --bg: #f5f5f5;
-            --card-bg: #ffffff;
-            --text: #1a1a1a;
-            --text-muted: #888;
-            --border: #e0e0e0;
+            --red: #c0392b; --red-dark: #96281b;
+            --bg: #f5f5f5; --card-bg: #ffffff;
+            --text: #1a1a1a; --text-muted: #888; --border: #e0e0e0;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding-bottom: 20px; }
 
         .app-header { background: white; display: flex; align-items: center; justify-content: center; padding: 14px 16px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-        .app-header .logo { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 800; letter-spacing: 0.5px; color: var(--text); }
-        .app-header .logo .star { color: var(--red); font-size: 16px; }
+        .logo { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 800; color: var(--text); }
+        .logo .star { color: var(--red); }
 
         .nav { display: flex; gap: 8px; padding: 12px 12px 0; }
         .tab-btn { flex: 1; padding: 10px 6px; border: none; border-radius: 12px; background: white; font-weight: 600; font-size: 13px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; gap: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: all .2s; }
@@ -30,9 +25,12 @@
         .tab-content { padding: 12px; }
         .hidden { display: none; }
 
+        .games-section-title { font-size: 13px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 14px 0 8px; }
+
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .card { background: var(--card-bg); border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.09); cursor: pointer; transition: transform .15s, box-shadow .15s; }
+        .card { background: var(--card-bg); border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.09); cursor: pointer; transition: transform .15s; }
         .card:active { transform: scale(0.97); }
+        .card.past { opacity: 0.55; filter: grayscale(40%); }
         .card-img { width: 100%; aspect-ratio: 1/1; object-fit: cover; display: block; }
         .card-img-placeholder { width: 100%; aspect-ratio: 1/1; background: linear-gradient(135deg,#1a1a2e,#c0392b); display: flex; align-items: center; justify-content: center; font-size: 36px; }
         .card-body { padding: 9px 11px 11px; }
@@ -40,11 +38,12 @@
         .card-body small { color: var(--text-muted); font-size: 11px; }
         .card-badge { display: inline-block; margin-top: 5px; font-size: 10px; background: var(--red); color: white; border-radius: 6px; padding: 2px 7px; font-weight: 600; }
         .card-badge.full { background: #888; }
+        .card-badge.past-badge { background: #aaa; }
 
         .btn { width: 100%; padding: 13px; border: none; border-radius: 12px; font-weight: 700; font-size: 14px; margin-top: 10px; cursor: pointer; transition: opacity .2s, transform .1s; }
-        .btn:active { transform: scale(0.98); opacity: 0.9; }
-        .btn-red { background: var(--red); color: white; box-shadow: 0 3px 10px rgba(192,57,43,0.3); }
-        .btn-gray { background: #e0e0e0; color: #555; }
+        .btn:active { transform: scale(0.98); }
+        .btn-red    { background: var(--red); color: white; box-shadow: 0 3px 10px rgba(192,57,43,0.3); }
+        .btn-gray   { background: #e0e0e0; color: #555; }
         .btn-danger { background: #e53935; color: white; }
         .btn-orange { background: #fb8c00; color: white; }
         .btn-sm { padding: 6px 11px; font-size: 11px; width: auto; margin-top: 0; border-radius: 8px; }
@@ -52,6 +51,7 @@
         label { display: block; font-size: 11px; color: var(--text-muted); margin-top: 12px; margin-bottom: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
         input, textarea { width: 100%; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 14px; background: white; color: var(--text); outline: none; transition: border-color .2s; -webkit-appearance: none; }
         input:focus, textarea:focus { border-color: var(--red); }
+        input[readonly] { background: #f5f5f5; color: #888; }
         textarea { height: 80px; resize: none; }
 
         .profile-header { display: flex; flex-direction: column; align-items: center; padding: 24px 16px 16px; }
@@ -69,16 +69,15 @@
         .modal-inner { padding: 16px; }
         .modal-inner h2 { font-size: 20px; margin-bottom: 4px; }
 
-        /* ── Таблица участников ── */
         .players-list { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
         .player-row { display: flex; align-items: center; gap: 10px; padding: 8px; background: #f9f9f9; border-radius: 10px; }
-        .player-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg,#1a1a2e,#c0392b); display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; font-weight: 700; flex-shrink: 0; overflow: hidden; }
+        .player-avatar { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg,#1a1a2e,#c0392b); display: flex; align-items: center; justify-content: center; font-size: 13px; color: white; font-weight: 700; flex-shrink: 0; overflow: hidden; }
         .player-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .player-info { flex: 1; min-width: 0; }
         .player-name { font-size: 13px; font-weight: 600; }
         .player-nick { font-size: 11px; color: var(--text-muted); }
         .player-tg a { font-size: 11px; color: var(--red); text-decoration: none; }
-        .player-num { font-size: 12px; color: #bbb; width: 18px; flex-shrink: 0; }
+        .player-num { font-size: 12px; color: #bbb; width: 20px; flex-shrink: 0; text-align: right; }
 
         .upload-box { margin-top: 5px; border: 2px dashed #ddd; border-radius: 12px; padding: 18px; text-align: center; cursor: pointer; position: relative; transition: border-color .2s; }
         .upload-box:hover { border-color: var(--red); }
@@ -93,9 +92,13 @@
         .admin-game-info small { color: var(--text-muted); font-size: 11px; }
         .admin-game-btns { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
 
-        .section-title { font-weight: 700; font-size: 15px; margin: 14px 0 8px; color: var(--text); }
+        .section-title { font-weight: 700; font-size: 15px; margin: 14px 0 8px; }
         .divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
         .my-record-card { display: flex; align-items: center; gap: 12px; background: white; border-radius: 14px; padding: 12px; margin-top: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+        .past-banner { background: #f0f0f0; border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #999; text-align: center; margin-top: 10px; }
+        .info-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+        .info-chip { background: #f0f0f0; border-radius: 8px; padding: 5px 10px; font-size: 12px; }
+        .location-box { background: #f9f9f9; border-radius: 10px; padding: 10px; margin-bottom: 12px; font-size: 13px; }
     </style>
 </head>
 <body>
@@ -105,20 +108,20 @@
 </div>
 
 <div class="nav">
-    <button id="btn-main"  class="tab-btn active-tab" onclick="showTab('main')">★ Игры</button>
-    <button id="btn-me"    class="tab-btn"            onclick="showTab('me')">👤 Профиль</button>
-    <button id="btn-admin" class="tab-btn"            onclick="showTab('admin')">🛡 Админ</button>
+    <button id="btn-main" class="tab-btn active-tab" onclick="showTab('main')">★ Игры</button>
+    <button id="btn-me"   class="tab-btn"            onclick="showTab('me')">👤 Профиль</button>
+    <button id="btn-admin" class="tab-btn"           onclick="showTab('admin')">🛡 Админ</button>
 </div>
 
 <!-- ══ ИГРЫ ══ -->
 <div id="tab-main" class="tab-content">
-    <div id="games-grid" class="grid">Загрузка...</div>
+    <div id="games-container">Загрузка...</div>
 </div>
 
 <!-- ══ ПРОФИЛЬ ══ -->
 <div id="tab-me" class="tab-content hidden">
     <div class="profile-header">
-        <div class="avatar-wrap" id="avatar-wrap"><span id="avatar-placeholder">👤</span></div>
+        <div class="avatar-wrap" id="avatar-wrap"><span>👤</span></div>
         <div class="profile-name" id="profile-display-name">—</div>
         <div class="profile-tg"   id="profile-display-tg">—</div>
     </div>
@@ -143,20 +146,31 @@
     <label>Дата</label>
     <input type="date" id="g-date" onchange="onDateChange(this)">
     <label>День недели</label>
-    <input id="g-day" placeholder="Подставится автоматически" readonly style="background:#f5f5f5;color:#888;">
-    <label>Тип стола</label><input id="g-type" placeholder="Вайбовый стол">
-    <label>Название игры</label><input id="g-title" placeholder="Городская Мафия">
-    <label>Описание</label><textarea id="g-desc"></textarea>
-    <label>Подходит (через запятую)</label><input id="g-fits">
-    <label>Не подходит (через запятую)</label><input id="g-notfits">
-    <label>Время начала</label><input id="g-time" placeholder="19:00">
-    <label>Количество игр</label><input id="g-count" placeholder="3-4 игры">
-    <label>Цена</label><input id="g-cost" placeholder="1500 ₽">
-    <label>Ведущий</label><input id="g-master">
-    <label>Название локации</label><input id="g-loc-name">
-    <label>Адрес</label><input id="g-loc-addr">
-    <label>Ссылка на карту</label><input id="g-loc-url">
-
+    <input id="g-day" readonly>
+    <label>Тип стола</label>
+    <input id="g-type" placeholder="Вайбовый стол">
+    <label>Название игры</label>
+    <input id="g-title" placeholder="Городская Мафия">
+    <label>Описание</label>
+    <textarea id="g-desc"></textarea>
+    <label>Подходит (через запятую)</label>
+    <input id="g-fits">
+    <label>Не подходит (через запятую)</label>
+    <input id="g-notfits">
+    <label>Время начала</label>
+    <input id="g-time" placeholder="19:00">
+    <label>Количество игр</label>
+    <input id="g-count" placeholder="3-4 игры">
+    <label>Цена</label>
+    <input id="g-cost" placeholder="1500 ₽">
+    <label>Ведущий</label>
+    <input id="g-master">
+    <label>Название локации</label>
+    <input id="g-loc-name">
+    <label>Адрес</label>
+    <input id="g-loc-addr">
+    <label>Ссылка на карту</label>
+    <input id="g-loc-url">
     <label>Фото (с устройства)</label>
     <div class="upload-box">
         <input type="file" id="g-photo-file" accept="image/*" onchange="uploadPhoto(this)">
@@ -170,7 +184,7 @@
     <button class="btn btn-gray" onclick="clearAdmin()">🗑 Очистить поля</button>
 </div>
 
-<!-- ══ МОДАЛКА ИГРЫ ══ -->
+<!-- ══ МОДАЛКА ══ -->
 <div id="game-modal" class="modal">
     <button class="modal-back" onclick="closeModal()">⬅ Назад</button>
     <div id="modal-content"></div>
@@ -179,27 +193,65 @@
 <script>
     const tg       = window.Telegram.WebApp;
     const API      = "https://mafia-k0kq.onrender.com";
-    const MY_ID    = tg.initDataUnsafe?.user?.id       || 12345;
-    const MY_TG    = tg.initDataUnsafe?.user?.username  ? "@" + tg.initDataUnsafe.user.username : "нет";
-    const MY_PHOTO = tg.initDataUnsafe?.user?.photo_url || null;
+    const MY_ID    = tg.initDataUnsafe?.user?.id        || 0;
+    const MY_TG    = tg.initDataUnsafe?.user?.username   ? "@" + tg.initDataUnsafe.user.username : "нет";
+    const MY_PHOTO = tg.initDataUnsafe?.user?.photo_url  || null;
     const MY_FIRST = tg.initDataUnsafe?.user?.first_name || "";
     const MY_LAST  = tg.initDataUnsafe?.user?.last_name  || "";
 
     const BOT_USERNAME = "mafia_revolutionclub_bot";
     const APP_NAME     = "app";
 
-    // ✅ Замените на реальные Telegram ID администраторов
+    // ✅ Только администраторы
     const ADMIN_IDS = [2111239214];
     const IS_ADMIN  = ADMIN_IDS.includes(MY_ID);
+
+    // ✅ Скрываем вкладку Админ для не-администраторов
+    if (!IS_ADMIN) {
+        document.getElementById('btn-admin').style.display = 'none';
+    }
 
     let games   = [];
     let profile = JSON.parse(localStorage.getItem('m_prof')) || null;
 
+    const MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+    const DAYS   = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+
+    // ✅ "2025-05-10" → "10 мая"
+    function formatDate(dateStr) {
+        if (!dateStr) return '';
+        if (dateStr.includes('-') && dateStr.length === 10) {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            return `${d} ${MONTHS[m-1]}`;
+        }
+        return dateStr;
+    }
+
+    // ✅ Проверка — прошла ли игра
+    function isGamePast(game) {
+        try {
+            let dateStr = game.game_date;
+            if (!dateStr) return false;
+            // Конвертируем "10 мая" → "2025-05-10"
+            if (!dateStr.includes('-')) {
+                const parts = dateStr.trim().split(' ');
+                const day   = String(parseInt(parts[0])).padStart(2,'0');
+                const month = String(MONTHS.indexOf(parts[1]) + 1).padStart(2,'0');
+                if (month === '0') return false;
+                dateStr = `${new Date().getFullYear()}-${month}-${day}`;
+            }
+            const timeStr = (game.time_start || "23:59").replace(/[^\d:]/g,'');
+            const [h, m]  = timeStr.split(':').map(Number);
+            const gameTime = new Date(`${dateStr}T${String(h||23).padStart(2,'0')}:${String(m||59).padStart(2,'0')}:00`);
+            return gameTime < new Date();
+        } catch(e) { return false; }
+    }
+
     /* ── Инициализация профиля ── */
     function initProfile() {
         if (MY_PHOTO) {
-            const img = document.createElement('img');
-            img.src = MY_PHOTO;
+            const img  = document.createElement('img');
+            img.src    = MY_PHOTO;
             const wrap = document.getElementById('avatar-wrap');
             wrap.innerHTML = '';
             wrap.appendChild(img);
@@ -215,8 +267,6 @@
         }
     }
 
-    /* ── День недели ── */
-    const DAYS = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
     function onDateChange(input) {
         if (!input.value) { document.getElementById('g-day').value = ''; return; }
         const d = new Date(input.value + 'T00:00:00');
@@ -227,108 +277,125 @@
     async function loadData() {
         try {
             const r = await fetch(API + "/games");
-            games = await r.json();
-            // ✅ Исправление: проверяем что games это массив
+            games   = await r.json();
             if (!Array.isArray(games)) games = [];
             renderGames();
             renderMyRecords();
-            renderAdminGames();
-        } catch (e) {
-            console.error("Ошибка загрузки:", e);
-            document.getElementById('games-grid').innerText = "Ошибка связи";
+            if (IS_ADMIN) renderAdminGames();
+        } catch(e) {
+            document.getElementById('games-container').innerText = "Ошибка связи";
         }
     }
 
     /* ── Карточки игр ── */
     function renderGames() {
-        if (!games.length) {
-            document.getElementById('games-grid').innerHTML = "<p style='color:#aaa;padding:10px;grid-column:span 2;'>Игр нет</p>";
-            return;
+        const active = games.filter(g => !isGamePast(g));
+        const past   = games.filter(g =>  isGamePast(g));
+        let html = '';
+        if (active.length) {
+            html += renderGameGrid(active, false);
+        } else {
+            html += `<p style="color:#aaa;padding:10px;">Активных игр нет</p>`;
         }
-        document.getElementById('games-grid').innerHTML = games.map(g => {
+        if (past.length) {
+            html += `<div class="games-section-title" style="margin-top:20px;">⏰ Прошедшие игры</div>`;
+            html += renderGameGrid(past, true);
+        }
+        document.getElementById('games-container').innerHTML = html;
+    }
+
+    function renderGameGrid(list, isPast) {
+        return `<div class="grid">` + list.map(g => {
             const imgBlock = g.photo_url
                 ? `<img class="card-img" src="${g.photo_url}" loading="lazy">`
                 : `<div class="card-img-placeholder">🎭</div>`;
             const slots = g.max_slots - g.players.length;
+            const badge = isPast
+                ? `<span class="card-badge past-badge">Завершена</span>`
+                : `<span class="card-badge ${slots<=0?'full':''}">${slots>0 ? slots+' мест' : 'Резерв'}</span>`;
             return `
-                <div class="card" onclick="openGame(${g.id})">
+                <div class="card ${isPast?'past':''}" onclick="openGame(${g.id})">
                     ${imgBlock}
                     <div class="card-body">
                         <b>${g.title}</b>
-                        <small>${g.game_date}</small><br>
-                        <span class="card-badge ${slots <= 0 ? 'full':''}">${slots > 0 ? slots+' мест' : 'Резерв'}</span>
+                        <small>${formatDate(g.game_date)}</small><br>
+                        ${badge}
                     </div>
                 </div>`;
-        }).join('');
+        }).join('') + `</div>`;
     }
 
     /* ── Открытие игры ── */
     function openGame(id) {
         const g = games.find(x => x.id === id);
         if (!g) return;
+        const past   = isGamePast(g);
         const signed = [...g.players, ...g.reserve].some(p => p.user_id === MY_ID);
 
         const heroBlock = g.photo_url
             ? `<img class="modal-hero" src="${g.photo_url}">`
             : `<div class="modal-hero-placeholder">🎭</div>`;
 
-        // ✅ Красивый список участников с аватаркой, именем, ником и TG (для админа)
+        // ✅ Список игроков с фото профиля из TG
         const playerRows = g.players.map((p, i) => {
-            const initials = p.name ? p.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2) : '?';
+            const initials = p.name
+                ? p.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2)
+                : '?';
+            const avatarHtml = p.photo_url
+                ? `<img src="${p.photo_url}" onerror="this.style.display='none'">`
+                : initials;
             const nickHtml = p.nickname?.trim()
                 ? `<div class="player-nick">«${p.nickname}»</div>` : '';
+            // ✅ TG ссылка только для админа
             const tgHtml = IS_ADMIN && p.tg_profile && p.tg_profile !== 'нет'
-                ? `<div class="player-tg"><a href="https://t.me/${p.tg_profile.replace('@','')}" target="_blank">🔗 ${p.tg_profile}</a></div>` : '';
+                ? `<div class="player-tg"><a href="https://t.me/${p.tg_profile.replace('@','')}" target="_blank">🔗 ${p.tg_profile}</a></div>`
+                : '';
             return `
                 <div class="player-row">
                     <div class="player-num">${i+1}.</div>
-                    <div class="player-avatar">${initials}</div>
+                    <div class="player-avatar">${avatarHtml}</div>
                     <div class="player-info">
                         <div class="player-name">${p.name}</div>
-                        ${nickHtml}
-                        ${tgHtml}
+                        ${nickHtml}${tgHtml}
                     </div>
                 </div>`;
         }).join('');
 
-        // ✅ Ссылка на конкретную игру в приложении
         const gameLink = `https://t.me/${BOT_USERNAME}/${APP_NAME}?startapp=game_${g.id}`;
+
+        const actionBtn = past
+            ? `<div class="past-banner">🏁 Эта игра уже завершена</div>`
+            : (!signed
+                ? `<button class="btn btn-red" onclick="reg(${g.id})">✅ Записаться</button>`
+                : `<button class="btn btn-danger" onclick="canc(${g.id})">❌ Отменить запись</button>`);
 
         document.getElementById('modal-content').innerHTML = `
             ${heroBlock}
             <div class="modal-inner">
                 <h2>${g.title}</h2>
-                <p style="color:#888;font-size:13px;margin:4px 0 10px;">
-                    🕒 ${g.game_date}, ${g.game_day} · ${g.time_start}
+                <p style="color:#888;font-size:13px;margin:4px 0 12px;">
+                    🕒 ${formatDate(g.game_date)}, ${g.game_day} · ${g.time_start}
                 </p>
                 <p style="font-size:14px;line-height:1.5;margin-bottom:12px;">${g.description}</p>
-
-                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-                    <span style="background:#f0f0f0;border-radius:8px;padding:5px 10px;font-size:12px;">💰 ${g.cost}</span>
-                    <span style="background:#f0f0f0;border-radius:8px;padding:5px 10px;font-size:12px;">🎮 ${g.games_count}</span>
-                    <span style="background:#f0f0f0;border-radius:8px;padding:5px 10px;font-size:12px;">🎩 ${g.master}</span>
+                <div class="info-chips">
+                    <span class="info-chip">💰 ${g.cost}</span>
+                    <span class="info-chip">🎮 ${g.games_count}</span>
+                    <span class="info-chip">🎩 ${g.master}</span>
                 </div>
-
-                <div style="background:#f9f9f9;border-radius:10px;padding:10px;margin-bottom:12px;font-size:13px;">
+                <div class="location-box">
                     📍 <b>${g.location_name}</b><br>
                     <span style="color:#888;">${g.location_address}</span>
+                    ${g.location_url ? `<br><a href="${g.location_url}" target="_blank" style="color:var(--red);font-size:12px;">Открыть карту →</a>` : ''}
                 </div>
-
                 <hr style="margin:12px 0;border:none;border-top:1px solid #f0f0f0;">
-
                 <b>Участники (${g.players.length}/${g.max_slots}):</b>
                 <div class="players-list">
                     ${playerRows || '<p style="color:#aaa;font-size:13px;margin-top:8px;">Пока никто не записался</p>'}
                 </div>
-                ${g.reserve.length ? `<p style="color:#aaa;font-size:12px;margin-top:8px;">Резерв: ${g.reserve.length} чел.</p>` : ''}
-
-                ${!signed
-                    ? `<button class="btn btn-red" onclick="reg(${g.id})">✅ Записаться</button>`
-                    : `<button class="btn btn-danger" onclick="canc(${g.id})">❌ Отменить запись</button>`}
-
-                <!-- ✅ Ссылка на игру в приложении -->
+                ${g.reserve.length ? `<p style="color:#aaa;font-size:12px;margin-top:8px;">В резерве: ${g.reserve.length} чел.</p>` : ''}
+                ${actionBtn}
                 <a href="${gameLink}" target="_blank"
-                   style="display:block;text-align:center;margin-top:10px;color:var(--red);font-size:13px;text-decoration:none;">
+                   style="display:block;text-align:center;margin-top:12px;color:var(--red);font-size:13px;text-decoration:none;padding:8px;background:#fff5f5;border-radius:8px;">
                     🔗 Поделиться ссылкой на игру
                 </a>
             </div>`;
@@ -341,11 +408,20 @@
         if (!profile) { showTab('me'); return alert("Заполните профиль!"); }
         await fetch(API + `/register/${id}`, {
             method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({name:profile.name, nickname:profile.nick||'', tg_profile:MY_TG, user_id:MY_ID})
+            body: JSON.stringify({
+                name:       profile.name,
+                nickname:   profile.nick || '',
+                tg_profile: MY_TG,
+                user_id:    MY_ID,
+                photo_url:  MY_PHOTO || ''
+            })
         });
         closeModal(); loadData();
     }
+
     async function canc(id) {
+        const g = games.find(x => x.id === id);
+        if (g && isGamePast(g)) return alert("Нельзя отменить запись на прошедшую игру");
         await fetch(API + `/cancel/${id}?user_id=${MY_ID}`, {method:'POST'});
         closeModal(); loadData();
     }
@@ -361,7 +437,7 @@
                     : `<div class="admin-game-placeholder">🎭</div>`}
                 <div class="admin-game-info">
                     <b>${g.title}</b>
-                    <small>${g.game_date} · ${g.players.length}/${g.max_slots}</small>
+                    <small>${formatDate(g.game_date)} · ${g.players.length}/${g.max_slots} игроков</small>
                 </div>
                 <div class="admin-game-btns">
                     <button class="btn btn-orange btn-sm" onclick="startEditGame(${g.id})">✏️</button>
@@ -370,53 +446,69 @@
             </div>`).join('');
     }
 
-    /* ── Редактирование ── */
     function startEditGame(id) {
         const g = games.find(x => x.id === id);
         if (!g) return;
-        document.getElementById('edit-game-id').value     = g.id;
-        document.getElementById('form-title').textContent = '✏️ Редактирование';
+        document.getElementById('edit-game-id').value      = g.id;
+        document.getElementById('form-title').textContent  = '✏️ Редактирование';
         document.getElementById('publish-btn').textContent = '💾 СОХРАНИТЬ';
-        document.getElementById('g-date').value     = g.game_date;
-        document.getElementById('g-day').value      = g.game_day;
-        document.getElementById('g-type').value     = g.table_type;
-        document.getElementById('g-title').value    = g.title;
-        document.getElementById('g-desc').value     = g.description;
-        document.getElementById('g-fits').value     = g.fits;
-        document.getElementById('g-notfits').value  = g.not_fits;
-        document.getElementById('g-time').value     = g.time_start;
-        document.getElementById('g-count').value    = g.games_count;
-        document.getElementById('g-cost').value     = g.cost;
-        document.getElementById('g-master').value   = g.master;
-        document.getElementById('g-loc-name').value = g.location_name;
-        document.getElementById('g-loc-addr').value = g.location_address;
-        document.getElementById('g-loc-url').value  = g.location_url;
-        document.getElementById('g-photo').value    = g.photo_url || '';
+
+        // Конвертируем "10 мая" → "2025-05-10" для input[type=date]
+        let dateVal = g.game_date || '';
+        if (dateVal && !dateVal.includes('-')) {
+            const parts = dateVal.trim().split(' ');
+            const day   = String(parseInt(parts[0])).padStart(2,'0');
+            const month = String(MONTHS.indexOf(parts[1]) + 1).padStart(2,'0');
+            dateVal = `${new Date().getFullYear()}-${month}-${day}`;
+        }
+        document.getElementById('g-date').value     = dateVal;
+        document.getElementById('g-day').value      = g.game_day      || '';
+        document.getElementById('g-type').value     = g.table_type    || '';
+        document.getElementById('g-title').value    = g.title         || '';
+        document.getElementById('g-desc').value     = g.description   || '';
+        document.getElementById('g-fits').value     = g.fits          || '';
+        document.getElementById('g-notfits').value  = g.not_fits      || '';
+        document.getElementById('g-time').value     = g.time_start    || '';
+        document.getElementById('g-count').value    = g.games_count   || '';
+        document.getElementById('g-cost').value     = g.cost          || '';
+        document.getElementById('g-master').value   = g.master        || '';
+        document.getElementById('g-loc-name').value = g.location_name || '';
+        document.getElementById('g-loc-addr').value = g.location_address || '';
+        document.getElementById('g-loc-url').value  = g.location_url  || '';
+        document.getElementById('g-photo').value    = g.photo_url     || '';
+
         if (g.photo_url) {
-            document.getElementById('upload-preview').src          = g.photo_url;
+            document.getElementById('upload-preview').src           = g.photo_url;
             document.getElementById('upload-preview').style.display = 'block';
             document.getElementById('upload-placeholder').style.display = 'none';
-            document.getElementById('g-photo-status').textContent  = '✅ Текущее фото';
-            document.getElementById('g-photo-status').style.color  = 'green';
+            document.getElementById('g-photo-status').textContent   = '✅ Текущее фото';
+            document.getElementById('g-photo-status').style.color   = 'green';
         }
         document.getElementById('form-title').scrollIntoView({behavior:'smooth'});
     }
 
-    /* ── Удаление ── */
     async function deleteGame(id) {
         if (!confirm('Удалить игру? Пост в Telegram тоже будет удалён.')) return;
         await fetch(API + `/delete_game/${id}`, {method:'DELETE'});
         loadData();
     }
 
-    /* ── Сохранение игры ── */
     async function saveGame() {
         const photoUrl  = document.getElementById('g-photo').value;
         const photoFile = document.getElementById('g-photo-file').files.length;
         const editId    = document.getElementById('edit-game-id').value;
         if (photoFile > 0 && !photoUrl) return alert("⏳ Фото ещё загружается...");
+
+        // ✅ Форматируем дату "2025-05-10" → "10 мая"
+        const rawDate = document.getElementById('g-date').value;
+        let formattedDate = rawDate;
+        if (rawDate && rawDate.includes('-')) {
+            const [y, m, d] = rawDate.split('-').map(Number);
+            formattedDate = `${d} ${MONTHS[m-1]}`;
+        }
+
         const data = {
-            game_date:        document.getElementById('g-date').value,
+            game_date:        formattedDate,
             table_type:       document.getElementById('g-type').value,
             title:            document.getElementById('g-title').value,
             description:      document.getElementById('g-desc').value,
@@ -433,10 +525,12 @@
             photo_url:        photoUrl
         };
         if (!data.title) return alert("Укажите название игры!");
+
         try {
             const url = editId ? `${API}/edit_game/${editId}` : `${API}/add_game`;
             const res = await fetch(url, {
-                method:'POST', headers:{'Content-Type':'application/json'},
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
                 body: JSON.stringify(data)
             });
             if (!res.ok) return alert("❌ Ошибка: " + await res.text());
@@ -445,7 +539,6 @@
         } catch(e) { alert("❌ " + e.message); }
     }
 
-    /* ── Загрузка фото ── */
     async function uploadPhoto(input) {
         const file = input.files[0];
         if (!file) return;
@@ -472,21 +565,19 @@
         }
     }
 
-    /* ── Очистка формы ── */
     function clearAdmin() {
         ['g-date','g-type','g-title','g-desc','g-fits','g-notfits',
          'g-day','g-time','g-count','g-cost','g-master',
          'g-loc-name','g-loc-addr','g-loc-url','g-photo','edit-game-id']
             .forEach(id => document.getElementById(id).value = '');
         document.getElementById('g-photo-file').value = '';
-        document.getElementById('upload-preview').style.display = 'none';
+        document.getElementById('upload-preview').style.display  = 'none';
         document.getElementById('upload-placeholder').style.display = 'block';
-        document.getElementById('g-photo-status').textContent = '';
+        document.getElementById('g-photo-status').textContent   = '';
         document.getElementById('form-title').textContent  = '➕ Новая игра';
         document.getElementById('publish-btn').textContent = '🚀 ОПУБЛИКОВАТЬ';
     }
 
-    /* ── Профиль ── */
     function saveProfile() {
         const name = document.getElementById('u-name').value.trim();
         const nick = document.getElementById('u-nick').value.trim();
@@ -500,21 +591,24 @@
     function renderMyRecords() {
         const my = games.filter(g => [...g.players, ...g.reserve].some(p => p.user_id === MY_ID));
         document.getElementById('my-records').innerHTML = my.length
-            ? `<div class="section-title">Мои записи</div>` + my.map(g => `
+            ? `<div class="section-title">Мои записи</div>` + my.map(g => {
+                const past = isGamePast(g);
+                return `
                 <div class="my-record-card">
                     ${g.photo_url
-                        ? `<img src="${g.photo_url}" style="width:54px;height:54px;border-radius:10px;object-fit:cover;flex-shrink:0;">`
+                        ? `<img src="${g.photo_url}" style="width:54px;height:54px;border-radius:10px;object-fit:cover;flex-shrink:0;${past?'filter:grayscale(60%);opacity:0.6;':''}">`
                         : `<div style="width:54px;height:54px;border-radius:10px;background:linear-gradient(135deg,#1a1a2e,#c0392b);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">🎭</div>`}
-                    <div style="flex:1;">
+                    <div style="flex:1;min-width:0;">
                         <b style="font-size:13px;">${g.title}</b><br>
-                        <small style="color:#888;">${g.game_date}</small>
+                        <small style="color:#888;">${formatDate(g.game_date)}</small>
+                        ${past ? '<br><small style="color:#bbb;">Завершена</small>' : ''}
                     </div>
-                    <button class="btn btn-danger btn-sm" onclick="canc(${g.id})">Отменить</button>
-                </div>`).join('')
+                    ${!past ? `<button class="btn btn-danger btn-sm" onclick="canc(${g.id})">Отменить</button>` : ''}
+                </div>`;
+            }).join('')
             : '';
     }
 
-    /* ── Навигация ── */
     function showTab(t) {
         ['main','me','admin'].forEach(x => {
             document.getElementById('tab-'+x).classList.add('hidden');
@@ -524,18 +618,13 @@
         document.getElementById('btn-'+t).classList.add('active-tab');
     }
 
-    /* ── Обработка startapp параметра ── */
     function handleStartApp() {
         const startParam = tg.initDataUnsafe?.start_param || "";
         if (startParam.startsWith("game_")) {
-            const gameId = parseInt(startParam.replace("game_", ""));
+            const gameId = parseInt(startParam.replace("game_",""));
             if (gameId) {
-                // Ждём загрузки данных и открываем игру
                 const tryOpen = setInterval(() => {
-                    if (games.length > 0) {
-                        clearInterval(tryOpen);
-                        openGame(gameId);
-                    }
+                    if (games.length > 0) { clearInterval(tryOpen); openGame(gameId); }
                 }, 300);
             }
         }
