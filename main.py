@@ -71,7 +71,6 @@ def sync_with_telegram(game: GameModel):
         for i in range(1, 16):
             if i <= len(game.players):
                 p = game.players[i-1]
-                # ✅ Показываем ник если он есть
                 nick = f" «{p.nickname}»" if p.nickname and p.nickname.strip() else ""
                 tg = f" @{p.tg_profile.replace('@','')}" if p.tg_profile != "нет" else ""
                 p_list += f"{i}) {p.name}{nick}{tg}\n"
@@ -107,7 +106,20 @@ def sync_with_telegram(game: GameModel):
             print(f"[TG] Скачиваем фото: {game.photo_url}")
             photo_response = requests.get(game.photo_url, timeout=15)
             print(f"[TG] Фото скачано, размер: {len(photo_response.content)} байт")
-            files = {"photo": ("photo.jpg", photo_response.content, "image/jpeg")}
+
+            # ✅ Конвертируем любой формат (webp, png, etc.) в JPEG через Pillow
+            from PIL import Image
+            import io
+            img = Image.open(io.BytesIO(photo_response.content))
+            # Конвертируем в RGB (на случай если RGBA или P режим)
+            if img.mode in ("RGBA", "P", "LA"):
+                img = img.convert("RGB")
+            jpeg_buffer = io.BytesIO()
+            img.save(jpeg_buffer, format="JPEG", quality=90)
+            jpeg_bytes = jpeg_buffer.getvalue()
+            print(f"[TG] Конвертировано в JPEG, размер: {len(jpeg_bytes)} байт")
+
+            files = {"photo": ("photo.jpg", jpeg_bytes, "image/jpeg")}
             data  = {"chat_id": GROUP_ID, "caption": text, "parse_mode": "Markdown"}
             res   = requests.post(url + "sendPhoto", data=data, files=files)
 
@@ -146,6 +158,7 @@ def sync_with_telegram(game: GameModel):
 
     except Exception as e:
         print(f"[TG] ИСКЛЮЧЕНИЕ: {e}")
+
 
 @app.get("/", response_class=HTMLResponse)
 async def read_index():
