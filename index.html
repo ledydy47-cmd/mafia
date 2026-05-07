@@ -146,13 +146,43 @@
 
         if (adminIds.includes(userId)) document.getElementById('btn-admin').classList.remove('hidden');
 
-        // Инициализация профиля
+               // 1. Инициализация полей профиля из памяти телефона
         if (myProfile) {
             document.getElementById('user-name').value = myProfile.name;
             document.getElementById('user-nick').value = myProfile.nick;
         }
 
+        // 2. Функция загрузки всех игр с сервера
         async function loadData() {
+            const res = await fetch(`${API_URL}/games`);
+            allGames = await res.json();
+            renderGames();
+            renderMyRegistrations();
+        }
+
+        // 3. Функция проверки прямой ссылки (на конкретную игру)
+        async function checkStartParam() {
+            const startParam = tg.initDataUnsafe.start_param; 
+            if (startParam && startParam.startsWith('game_')) {
+                const gameId = parseInt(startParam.replace('game_', ''));
+                
+                // Ищем игру в загруженном массиве
+                const game = allGames.find(g => g.id === gameId);
+                if (game) {
+                    openGame(gameId);
+                }
+            }
+        }
+
+        // 4. ЗАПУСК: Сначала грузим данные, ПОТОМ проверяем параметры
+        loadData().then(() => {
+            checkStartParam();
+        });
+
+
+// Измените последнюю строку в index.html на эту:
+loadData().then(checkStartParam);
+
             const res = await fetch(`${API_URL}/games`);
             allGames = await res.json();
             renderGames();
